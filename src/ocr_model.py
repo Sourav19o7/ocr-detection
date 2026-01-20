@@ -3,10 +3,16 @@ OCR Model Module - PaddleOCR wrapper for text detection from images.
 Structured for easy fine-tuning with custom datasets.
 """
 
-from paddleocr import PaddleOCR
+import sys
 import numpy as np
 from PIL import Image
 from dataclasses import dataclass
+
+# Cache the PaddleOCR module to prevent reinitialization errors with Streamlit
+if "paddleocr" not in sys.modules:
+    from paddleocr import PaddleOCR
+else:
+    PaddleOCR = sys.modules["paddleocr"].PaddleOCR
 
 
 @dataclass
