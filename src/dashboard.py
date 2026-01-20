@@ -70,14 +70,13 @@ st.markdown("""
 
     /* Premium Card Style */
     .premium-card {
-        background: linear-gradient(145deg, #ffffff 0%, #e5e5e5 100%);
+        background: linear-gradient(145deg, #1a2744 0%, #14213d 100%);
         border-radius: 24px;
         padding: 2rem;
         box-shadow:
-            0 4px 6px rgba(0, 0, 0, 0.1),
-            0 20px 40px rgba(0, 0, 0, 0.2),
-            inset 0 1px 0 rgba(255, 255, 255, 0.8);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+            0 4px 6px rgba(0, 0, 0, 0.2),
+            0 20px 40px rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(252, 163, 17, 0.2);
     }
 
     /* Upload area - Dark themed to match the app */
@@ -257,17 +256,17 @@ st.markdown("""
 
     /* Output section */
     .output-container {
-        background: linear-gradient(145deg, #ffffff 0%, #e5e5e5 100%);
+        background: linear-gradient(145deg, #1a2744 0%, #14213d 100%);
         border-radius: 24px;
         padding: 2rem;
         box-shadow:
-            0 4px 6px rgba(0, 0, 0, 0.1),
-            0 20px 40px rgba(0, 0, 0, 0.2);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+            0 4px 6px rgba(0, 0, 0, 0.2),
+            0 20px 40px rgba(0, 0, 0, 0.4);
+        border: 1px solid rgba(252, 163, 17, 0.2);
     }
 
     .output-label {
-        color: #14213d;
+        color: #fca311;
         font-weight: 600;
         font-size: 0.8rem;
         text-transform: uppercase;
@@ -277,12 +276,12 @@ st.markdown("""
 
     /* Text area styling */
     .stTextArea textarea {
-        border: 1px solid #e5e5e5;
+        border: 1px solid rgba(252, 163, 17, 0.3);
         border-radius: 14px;
         font-family: 'Lexend', sans-serif !important;
         font-size: 0.9rem;
-        color: #14213d;
-        background: #ffffff;
+        color: #e5e5e5;
+        background: #0d1521;
         padding: 1rem;
     }
 
@@ -295,7 +294,7 @@ st.markdown("""
     .stAlert {
         border-radius: 14px;
         border: none;
-        background: #ffffff;
+        background: #1a2744;
     }
 
     /* Processing status */
@@ -342,21 +341,21 @@ st.markdown("""
         align-items: center;
         padding: 0.875rem 1rem;
         margin: 0.5rem 0;
-        background: #ffffff;
+        background: #0d1521;
         border-radius: 12px;
         font-size: 0.9rem;
-        border: 1px solid #e5e5e5;
+        border: 1px solid rgba(252, 163, 17, 0.2);
         transition: all 0.2s ease;
     }
 
     .confidence-item:hover {
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        box-shadow: 0 4px 12px rgba(252, 163, 17, 0.15);
         transform: translateX(4px);
         border-color: #fca311;
     }
 
     .confidence-text {
-        color: #14213d;
+        color: #e5e5e5;
         flex: 1;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -374,16 +373,16 @@ st.markdown("""
     }
 
     .confidence-high {
-        background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
-        color: #155724;
+        background: linear-gradient(135deg, #1a4d2e 0%, #2d6a4f 100%);
+        color: #95d5b2;
     }
     .confidence-medium {
-        background: linear-gradient(135deg, #fff3cd 0%, #ffeeba 100%);
-        color: #856404;
+        background: linear-gradient(135deg, #5c4d1a 0%, #7d6608 100%);
+        color: #fca311;
     }
     .confidence-low {
-        background: linear-gradient(135deg, #f8d7da 0%, #f5c6cb 100%);
-        color: #721c24;
+        background: linear-gradient(135deg, #4d1a1a 0%, #6a2d2d 100%);
+        color: #f5a5a5;
     }
 
     .avg-confidence {
