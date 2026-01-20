@@ -1,0 +1,34 @@
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+
+# PaddleOCR models (downloaded automatically)
+models/
+*.pdparams
+*.pdopt
+*.pdmodel
+
+# IDE
+.vscode/
+.idea/
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Streamlit
+.streamlit/
+
+# History (local storage)
+history/
+
+# Logs
+*.log
