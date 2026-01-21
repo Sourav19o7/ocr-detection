@@ -79,35 +79,32 @@ st.markdown("""
         border: 1px solid rgba(252, 163, 17, 0.2);
     }
 
-    /* Upload area - Dark themed to match the app */
+    /* Upload area - Unified dark theme */
     [data-testid="stFileUploader"] {
-        background: transparent !important;
-        border: none !important;
-        padding: 0 !important;
-    }
-
-    [data-testid="stFileUploader"] > div {
-        background: transparent !important;
-    }
-
-    [data-testid="stFileUploader"] section {
         background: rgba(20, 33, 61, 0.6) !important;
         border: 2px dashed rgba(252, 163, 17, 0.5) !important;
         border-radius: 20px !important;
-        padding: 2.5rem !important;
+        padding: 2rem !important;
         transition: all 0.3s ease !important;
     }
 
-    [data-testid="stFileUploader"] section:hover {
+    [data-testid="stFileUploader"]:hover {
         border-color: #fca311 !important;
         background: rgba(20, 33, 61, 0.8) !important;
         box-shadow: 0 8px 32px rgba(252, 163, 17, 0.15) !important;
     }
 
-    [data-testid="stFileUploader"] section > div {
+    /* Remove inner section styling to avoid double borders */
+    [data-testid="stFileUploader"] section,
+    [data-testid="stFileUploader"] > div,
+    [data-testid="stFileUploaderDropzone"],
+    [data-testid="stFileUploaderDropzone"] > div {
         background: transparent !important;
+        border: none !important;
+        padding: 0 !important;
     }
 
+    /* Text styling */
     [data-testid="stFileUploader"] label,
     [data-testid="stFileUploader"] p,
     [data-testid="stFileUploader"] span,
@@ -116,12 +113,18 @@ st.markdown("""
         font-family: 'Lexend', sans-serif !important;
     }
 
+    /* Icon styling */
+    [data-testid="stFileUploader"] svg {
+        color: #e5e5e5 !important;
+    }
+
+    /* Browse files button */
     [data-testid="stFileUploader"] button {
         background: linear-gradient(135deg, #fca311 0%, #e09000 100%) !important;
         color: #000000 !important;
         border: none !important;
         border-radius: 10px !important;
-        padding: 0.5rem 1.25rem !important;
+        padding: 0.6rem 1.5rem !important;
         font-weight: 600 !important;
         font-family: 'Lexend', sans-serif !important;
         transition: all 0.3s ease !important;
@@ -131,15 +134,6 @@ st.markdown("""
         background: linear-gradient(135deg, #ffb733 0%, #fca311 100%) !important;
         transform: translateY(-2px) !important;
         box-shadow: 0 4px 12px rgba(252, 163, 17, 0.4) !important;
-    }
-
-    /* File uploader drag text */
-    [data-testid="stFileUploaderDropzone"] {
-        background: transparent !important;
-    }
-
-    [data-testid="stFileUploaderDropzone"] div {
-        background: transparent !important;
     }
 
     /* Image container */
@@ -364,12 +358,37 @@ st.markdown("""
         font-weight: 400;
     }
 
+    .confidence-badges {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
     .confidence-score {
         font-weight: 600;
         padding: 0.375rem 0.75rem;
         border-radius: 8px;
         font-size: 0.75rem;
         letter-spacing: 0.5px;
+    }
+
+    .approval-badge {
+        font-weight: 600;
+        padding: 0.375rem 0.75rem;
+        border-radius: 8px;
+        font-size: 0.7rem;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+    }
+
+    .approved {
+        background: linear-gradient(135deg, #1a4d2e 0%, #2d6a4f 100%);
+        color: #95d5b2;
+    }
+
+    .not-approved {
+        background: linear-gradient(135deg, #4d1a1a 0%, #6a2d2d 100%);
+        color: #f5a5a5;
     }
 
     .confidence-high {
@@ -588,10 +607,16 @@ def render_confidence_results(results: list):
 
     for r in results:
         conf_class = get_confidence_class(r.confidence)
+        is_approved = r.confidence >= 0.75
+        approval_class = "approved" if is_approved else "not-approved"
+        approval_text = "Approved" if is_approved else "Not Approved"
         st.markdown(f"""
         <div class="confidence-item">
             <span class="confidence-text">{r.text}</span>
-            <span class="confidence-score {conf_class}">{r.confidence * 100:.0f}%</span>
+            <div class="confidence-badges">
+                <span class="confidence-score {conf_class}">{r.confidence * 100:.0f}%</span>
+                <span class="approval-badge {approval_class}">{approval_text}</span>
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
@@ -652,6 +677,8 @@ def main():
         st.session_state.processed = False
     if "current_image" not in st.session_state:
         st.session_state.current_image = None
+    if "processing" not in st.session_state:
+        st.session_state.processing = False
 
     # Main content area
     col_main, col_results = st.columns([1, 1], gap="large")
@@ -684,41 +711,7 @@ def main():
 
             # Extract button
             if st.button("Extract Text", use_container_width=True):
-                # Processing display
-                status_placeholder = st.empty()
-
-                with status_placeholder.container():
-                    st.markdown("""
-                    <div class="processing-status">
-                        <div class="processing-step done">&#10003; Image loaded</div>
-                        <div class="processing-step active">&#9679; Analyzing...</div>
-                        <div class="processing-step pending">&#9675; Extracting text</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-
-                # Load model and process
-                ocr_engine = load_ocr_engine()
-
-                status_placeholder.markdown("""
-                <div class="processing-status">
-                    <div class="processing-step done">&#10003; Image loaded</div>
-                    <div class="processing-step done">&#10003; Analysis complete</div>
-                    <div class="processing-step active">&#9679; Extracting...</div>
-                </div>
-                """, unsafe_allow_html=True)
-
-                # Extract text with confidence
-                results = ocr_engine.extract_text_with_confidence(image)
-                st.session_state.ocr_results = results
-                st.session_state.processed = True
-
-                # Save to history
-                if results:
-                    avg_conf = sum(r.confidence for r in results) / len(results)
-                    text = "\n".join([r.text for r in results])
-                    add_to_history(image, text, avg_conf)
-
-                status_placeholder.empty()
+                st.session_state.processing = True
                 st.rerun()
 
         else:
@@ -737,7 +730,46 @@ def main():
             """, unsafe_allow_html=True)
 
     with col_results:
-        if st.session_state.processed and st.session_state.ocr_results is not None:
+        if st.session_state.processing and st.session_state.current_image is not None:
+            # Show processing status
+            status_placeholder = st.empty()
+
+            with status_placeholder.container():
+                st.markdown("""
+                <div class="processing-status">
+                    <div class="processing-step done">&#10003; Image loaded</div>
+                    <div class="processing-step active">&#9679; Analyzing...</div>
+                    <div class="processing-step pending">&#9675; Extracting text</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            # Load model and process
+            ocr_engine = load_ocr_engine()
+
+            status_placeholder.markdown("""
+            <div class="processing-status">
+                <div class="processing-step done">&#10003; Image loaded</div>
+                <div class="processing-step done">&#10003; Analysis complete</div>
+                <div class="processing-step active">&#9679; Extracting...</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Extract text with confidence
+            results = ocr_engine.extract_text_with_confidence(st.session_state.current_image)
+            st.session_state.ocr_results = results
+            st.session_state.processed = True
+            st.session_state.processing = False
+
+            # Save to history
+            if results:
+                avg_conf = sum(r.confidence for r in results) / len(results)
+                text = "\n".join([r.text for r in results])
+                add_to_history(st.session_state.current_image, text, avg_conf)
+
+            status_placeholder.empty()
+            st.rerun()
+
+        elif st.session_state.processed and st.session_state.ocr_results is not None:
             st.markdown('<div class="output-container">', unsafe_allow_html=True)
             render_confidence_results(st.session_state.ocr_results)
 
