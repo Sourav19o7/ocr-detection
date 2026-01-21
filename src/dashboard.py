@@ -79,33 +79,33 @@ st.markdown("""
         border: 1px solid rgba(252, 163, 17, 0.2);
     }
 
-    /* Upload area - Unified dark theme */
+    /* Upload area - Clean minimal style */
     [data-testid="stFileUploader"] {
-        background: rgba(20, 33, 61, 0.6) !important;
-        border: 2px dashed rgba(252, 163, 17, 0.5) !important;
-        border-radius: 20px !important;
-        padding: 2rem !important;
-        transition: all 0.3s ease !important;
-    }
-
-    [data-testid="stFileUploader"]:hover {
-        border-color: #fca311 !important;
-        background: rgba(20, 33, 61, 0.8) !important;
-        box-shadow: 0 8px 32px rgba(252, 163, 17, 0.15) !important;
-    }
-
-    /* Remove inner section styling to avoid double borders */
-    [data-testid="stFileUploader"] section,
-    [data-testid="stFileUploader"] > div,
-    [data-testid="stFileUploaderDropzone"],
-    [data-testid="stFileUploaderDropzone"] > div {
         background: transparent !important;
         border: none !important;
         padding: 0 !important;
     }
 
+    /* Dropzone styling */
+    [data-testid="stFileUploader"] section {
+        background: rgba(20, 33, 61, 0.6) !important;
+        border: 2px dashed rgba(252, 163, 17, 0.5) !important;
+        border-radius: 16px !important;
+        padding: 2.5rem 2rem !important;
+        transition: all 0.3s ease !important;
+    }
+
+    [data-testid="stFileUploader"] section:hover {
+        border-color: #fca311 !important;
+        background: rgba(20, 33, 61, 0.8) !important;
+    }
+
+    /* Hide the uploaded file info row - we show image separately */
+    [data-testid="stFileUploader"] > div > div:last-child {
+        display: none !important;
+    }
+
     /* Text styling */
-    [data-testid="stFileUploader"] label,
     [data-testid="stFileUploader"] p,
     [data-testid="stFileUploader"] span,
     [data-testid="stFileUploader"] small {
@@ -113,9 +113,16 @@ st.markdown("""
         font-family: 'Lexend', sans-serif !important;
     }
 
+    /* Hide the file size limit text */
+    [data-testid="stFileUploader"] small {
+        display: none !important;
+    }
+
     /* Icon styling */
     [data-testid="stFileUploader"] svg {
         color: #e5e5e5 !important;
+        width: 40px !important;
+        height: 40px !important;
     }
 
     /* Browse files button */
@@ -134,6 +141,32 @@ st.markdown("""
         background: linear-gradient(135deg, #ffb733 0%, #fca311 100%) !important;
         transform: translateY(-2px) !important;
         box-shadow: 0 4px 12px rgba(252, 163, 17, 0.4) !important;
+    }
+
+    /* Delete/X button for uploaded file */
+    [data-testid="stFileUploader"] button[kind="icon"],
+    [data-testid="stFileUploader"] button:has(svg[data-testid="stBaseButton-headerNoPadding"]),
+    [data-testid="stFileUploader"] [data-testid="baseButton-secondary"] {
+        background: transparent !important;
+        padding: 0.3rem !important;
+        width: 28px !important;
+        height: 28px !important;
+        min-width: 28px !important;
+        border-radius: 6px !important;
+        box-shadow: none !important;
+    }
+
+    [data-testid="stFileUploader"] button[kind="icon"] svg,
+    [data-testid="stFileUploader"] [data-testid="baseButton-secondary"] svg {
+        width: 14px !important;
+        height: 14px !important;
+        color: #14213d !important;
+    }
+
+    [data-testid="stFileUploader"] button[kind="icon"]:hover,
+    [data-testid="stFileUploader"] [data-testid="baseButton-secondary"]:hover {
+        background: rgba(20, 33, 61, 0.3) !important;
+        transform: none !important;
     }
 
     /* Image container */
