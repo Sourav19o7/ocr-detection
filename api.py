@@ -6,19 +6,21 @@ Deploy on Render or run locally with: uvicorn api:app --host 0.0.0.0 --port 8000
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional, List
 from PIL import Image
 import io
 import sys
 
-# Import OCR engine
+# Import OCR engines
 sys.path.insert(0, "src")
 from ocr_model import OCREngine, OCRResult
+from ocr_model_v2 import OCREngineV2, OCRResultV2, HallmarkInfo, HallmarkType
 
 
 app = FastAPI(
     title="OCR API",
-    description="Extract text from images using PaddleOCR",
-    version="1.0.0"
+    description="Extract text from images using PaddleOCR (v1 and v2 with hallmark detection)",
+    version="2.0.0"
 )
 
 # CORS middleware for cross-origin requests
@@ -30,8 +32,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize OCR engine at startup
+# Initialize OCR engines at startup
 ocr_engine = None
+ocr_engine_v2 = None
 
 
 class TextResult(BaseModel):
@@ -47,11 +50,38 @@ class OCRResponse(BaseModel):
     average_confidence: float
 
 
+# V2 Response Models
+class TextResultV2(BaseModel):
+    text: str
+    confidence: float
+    approved: bool
+    hallmark_type: str
+    validated: bool
+    validation_details: dict
+
+
+class HallmarkData(BaseModel):
+    purity_code: Optional[str] = None
+    karat: Optional[str] = None
+    purity_percentage: Optional[float] = None
+    huid: Optional[str] = None
+    bis_certified: bool = False
+
+
+class OCRResponseV2(BaseModel):
+    success: bool
+    results: List[TextResultV2]
+    full_text: str
+    average_confidence: float
+    hallmark: HallmarkData
+
+
 @app.on_event("startup")
 async def startup_event():
-    """Load OCR model on startup."""
-    global ocr_engine
+    """Load OCR models on startup."""
+    global ocr_engine, ocr_engine_v2
     ocr_engine = OCREngine()
+    ocr_engine_v2 = OCREngineV2(enable_preprocessing=True)
 
 
 @app.get("/")
@@ -119,6 +149,76 @@ async def extract_text(file: UploadFile = File(...)):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"OCR processing failed: {str(e)}")
+
+
+@app.post("/extract/v2", response_model=OCRResponseV2)
+async def extract_text_v2(file: UploadFile = File(...)):
+    """
+    Extract text from an uploaded image using V2 engine with hallmark detection.
+
+    Features:
+    - Advanced image preprocessing for metal surfaces
+    - Hallmark pattern recognition (purity marks, HUID)
+    - BIS standard validation
+    - Reflection removal and contrast enhancement
+
+    Args:
+        file: Image file (PNG, JPG, JPEG, BMP, WEBP)
+
+    Returns:
+        OCRResponseV2 with extracted text, hallmark info, and validation status
+    """
+    # Validate file type
+    allowed_types = ["image/png", "image/jpeg", "image/jpg", "image/bmp", "image/webp"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file type. Allowed: PNG, JPG, JPEG, BMP, WEBP"
+        )
+
+    try:
+        # Read image
+        contents = await file.read()
+        image = Image.open(io.BytesIO(contents))
+
+        # Convert to RGB if necessary
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+
+        # Extract text with hallmark info
+        hallmark_info = ocr_engine_v2.extract_with_hallmark_info(image)
+
+        # Build response
+        results = [
+            TextResultV2(
+                text=r.text,
+                confidence=r.confidence,
+                approved=r.confidence >= 0.75,
+                hallmark_type=r.hallmark_type.value,
+                validated=r.validated,
+                validation_details=r.validation_details
+            )
+            for r in hallmark_info.all_results
+        ]
+
+        full_text = "\n".join([r.text for r in hallmark_info.all_results])
+
+        return OCRResponseV2(
+            success=True,
+            results=results,
+            full_text=full_text,
+            average_confidence=hallmark_info.overall_confidence,
+            hallmark=HallmarkData(
+                purity_code=hallmark_info.purity_code,
+                karat=hallmark_info.karat,
+                purity_percentage=hallmark_info.purity_percentage,
+                huid=hallmark_info.huid,
+                bis_certified=hallmark_info.bis_certified
+            )
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"OCR V2 processing failed: {str(e)}")
 
 
 if __name__ == "__main__":

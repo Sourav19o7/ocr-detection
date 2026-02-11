@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OCR API Tester</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap');
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Lexend', sans-serif;
+        }
+
+        body {
+            background: linear-gradient(160deg, #000000 0%, #14213d 100%);
+            min-height: 100vh;
+            color: #e5e5e5;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: #ffffff;
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            text-align: center;
+            color: #fca311;
+            font-size: 0.9rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 2rem;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            justify-content: center;
+        }
+
+        .tab-btn {
+            padding: 1rem 2rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: rgba(255, 255, 255, 0.5);
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .tab-btn:hover {
+            background: rgba(252, 163, 17, 0.1);
+            color: #ffffff;
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, #fca311 0%, #e09000 100%);
+            color: #000000;
+            border-color: #fca311;
+            font-weight: 600;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .card {
+            background: linear-gradient(145deg, #1a2744 0%, #14213d 100%);
+            border-radius: 24px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2), 0 20px 40px rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(252, 163, 17, 0.2);
+        }
+
+        .card-title {
+            color: #fca311;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+        }
+
+        .upload-area {
+            border: 2px dashed rgba(252, 163, 17, 0.5);
+            border-radius: 16px;
+            padding: 3rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(20, 33, 61, 0.6);
+        }
+
+        .upload-area:hover {
+            border-color: #fca311;
+            background: rgba(20, 33, 61, 0.8);
+        }
+
+        .upload-area.dragover {
+            border-color: #fca311;
+            background: rgba(252, 163, 17, 0.1);
+        }
+
+        .upload-area input {
+            display: none;
+        }
+
+        .upload-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .preview-container {
+            margin-top: 1.5rem;
+            display: none;
+        }
+
+        .preview-container.show {
+            display: block;
+        }
+
+        .preview-image {
+            max-width: 100%;
+            max-height: 300px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #fca311 0%, #e09000 100%);
+            color: #000000;
+            border: none;
+            border-radius: 12px;
+            padding: 1rem 2rem;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 1.5rem;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(252, 163, 17, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .results-area {
+            margin-top: 2rem;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #fca311;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(252, 163, 17, 0.3);
+            border-radius: 50%;
+            border-top-color: #fca311;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .result-item {
+            background: #0d1521;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 1px solid rgba(252, 163, 17, 0.2);
+        }
+
+        .result-text {
+            flex: 1;
+            margin-right: 1rem;
+        }
+
+        .result-badges {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+
+        .badge {
+            padding: 0.375rem 0.75rem;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-confidence {
+            background: linear-gradient(135deg, #1a4d2e 0%, #2d6a4f 100%);
+            color: #95d5b2;
+        }
+
+        .badge-confidence.medium {
+            background: linear-gradient(135deg, #5c4d1a 0%, #7d6608 100%);
+            color: #fca311;
+        }
+
+        .badge-confidence.low {
+            background: linear-gradient(135deg, #4d1a1a 0%, #6a2d2d 100%);
+            color: #f5a5a5;
+        }
+
+        .badge-approved {
+            background: linear-gradient(135deg, #1a4d2e 0%, #2d6a4f 100%);
+            color: #95d5b2;
+        }
+
+        .badge-not-approved {
+            background: linear-gradient(135deg, #4d1a1a 0%, #6a2d2d 100%);
+            color: #f5a5a5;
+        }
+
+        .badge-type {
+            background: rgba(252, 163, 17, 0.2);
+            color: #fca311;
+        }
+
+        .badge-validated {
+            background: linear-gradient(135deg, #1a4d2e 0%, #2d6a4f 100%);
+            color: #95d5b2;
+        }
+
+        .hallmark-card {
+            background: linear-gradient(145deg, #1a4d2e 0%, #14213d 100%);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(149, 213, 178, 0.3);
+        }
+
+        .hallmark-title {
+            color: #95d5b2;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            margin-bottom: 1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .bis-badge {
+            padding: 0.375rem 0.875rem;
+            border-radius: 20px;
+            font-size: 0.7rem;
+        }
+
+        .bis-certified {
+            background: linear-gradient(135deg, #1a4d2e 0%, #2d6a4f 100%);
+            color: #95d5b2;
+        }
+
+        .bis-not-certified {
+            background: linear-gradient(135deg, #4d3a1a 0%, #6a4d08 100%);
+            color: #fca311;
+        }
+
+        .hallmark-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .hallmark-item:last-child {
+            border-bottom: none;
+        }
+
+        .hallmark-label {
+            color: rgba(255, 255, 255, 0.6);
+        }
+
+        .hallmark-value {
+            color: #fca311;
+            font-weight: 600;
+        }
+
+        .avg-confidence {
+            text-align: center;
+            padding: 1.5rem;
+            background: linear-gradient(135deg, #14213d 0%, #000000 100%);
+            border-radius: 16px;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(252, 163, 17, 0.2);
+        }
+
+        .avg-score {
+            font-size: 3rem;
+            font-weight: 700;
+            color: #fca311;
+        }
+
+        .avg-label {
+            font-size: 0.75rem;
+            color: #e5e5e5;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .full-text {
+            background: #0d1521;
+            border: 1px solid rgba(252, 163, 17, 0.3);
+            border-radius: 12px;
+            padding: 1rem;
+            color: #e5e5e5;
+            width: 100%;
+            min-height: 120px;
+            resize: vertical;
+            font-family: 'Lexend', sans-serif;
+        }
+
+        .error-message {
+            background: linear-gradient(135deg, #4d1a1a 0%, #6a2d2d 100%);
+            color: #f5a5a5;
+            padding: 1rem;
+            border-radius: 12px;
+            margin-top: 1rem;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .api-url {
+            background: #0d1521;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 0.85rem;
+            margin-bottom: 1rem;
+            border: 1px solid rgba(252, 163, 17, 0.2);
+        }
+
+        .api-url span {
+            color: #fca311;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>OCR API Tester</h1>
+        <p class="subtitle">Test V1 & V2 Endpoints</p>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('v1')">Standard OCR (V1)</button>
+            <button class="tab-btn" onclick="switchTab('v2')">Hallmark OCR (V2)</button>
+        </div>
+
+        <!-- V1 Tab -->
+        <div id="v1-tab" class="tab-content active">
+            <div class="api-url">
+                POST <span>http://localhost:8000/extract</span>
+            </div>
+            <div class="grid">
+                <div class="card">
+                    <div class="card-title">Upload Image</div>
+                    <div class="upload-area" id="upload-area-v1" onclick="document.getElementById('file-input-v1').click()">
+                        <input type="file" id="file-input-v1" accept="image/*" onchange="handleFileSelect(this, 'v1')">
+                        <div class="upload-icon">📷</div>
+                        <p>Drop an image here or click to upload</p>
+                        <p style="font-size: 0.85rem; color: rgba(255,255,255,0.5); margin-top: 0.5rem;">PNG, JPG, JPEG, BMP, WEBP</p>
+                    </div>
+                    <div class="preview-container" id="preview-container-v1">
+                        <img id="preview-image-v1" class="preview-image" alt="Preview">
+                    </div>
+                    <button class="btn" id="extract-btn-v1" onclick="extractText('v1')" disabled>Extract Text</button>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">Results</div>
+                    <div id="results-v1" class="results-area">
+                        <p style="color: rgba(255,255,255,0.3); text-align: center;">Upload an image and click Extract</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- V2 Tab -->
+        <div id="v2-tab" class="tab-content">
+            <div class="api-url">
+                POST <span>http://localhost:8000/extract/v2</span>
+            </div>
+            <div class="grid">
+                <div class="card">
+                    <div class="card-title">Upload Hallmark Image</div>
+                    <div class="upload-area" id="upload-area-v2" onclick="document.getElementById('file-input-v2').click()">
+                        <input type="file" id="file-input-v2" accept="image/*" onchange="handleFileSelect(this, 'v2')">
+                        <div class="upload-icon">💎</div>
+                        <p>Drop a hallmark image here or click to upload</p>
+                        <p style="font-size: 0.85rem; color: rgba(255,255,255,0.5); margin-top: 0.5rem;">PNG, JPG, JPEG, BMP, WEBP</p>
+                    </div>
+                    <div class="preview-container" id="preview-container-v2">
+                        <img id="preview-image-v2" class="preview-image" alt="Preview">
+                    </div>
+                    <button class="btn" id="extract-btn-v2" onclick="extractText('v2')" disabled>Extract Hallmark</button>
+                </div>
+
+                <div class="card">
+                    <div class="card-title">Results</div>
+                    <div id="results-v2" class="results-area">
+                        <p style="color: rgba(255,255,255,0.3); text-align: center;">Upload a hallmark image and click Extract</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        let selectedFiles = { v1: null, v2: null };
+
+        // Tab switching
+        function switchTab(tab) {
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+            document.querySelector(`.tab-btn:nth-child(${tab === 'v1' ? 1 : 2})`).classList.add('active');
+            document.getElementById(`${tab}-tab`).classList.add('active');
+        }
+
+        // Drag and drop
+        ['v1', 'v2'].forEach(version => {
+            const uploadArea = document.getElementById(`upload-area-${version}`);
+
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('dragover');
+            });
+
+            uploadArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                const file = e.dataTransfer.files[0];
+                if (file && file.type.startsWith('image/')) {
+                    document.getElementById(`file-input-${version}`).files = e.dataTransfer.files;
+                    handleFileSelect(document.getElementById(`file-input-${version}`), version);
+                }
+            });
+        });
+
+        // File selection
+        function handleFileSelect(input, version) {
+            const file = input.files[0];
+            if (file) {
+                selectedFiles[version] = file;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    document.getElementById(`preview-image-${version}`).src = e.target.result;
+                    document.getElementById(`preview-container-${version}`).classList.add('show');
+                };
+                reader.readAsDataURL(file);
+                document.getElementById(`extract-btn-${version}`).disabled = false;
+            }
+        }
+
+        // Extract text
+        async function extractText(version) {
+            const file = selectedFiles[version];
+            if (!file) return;
+
+            const resultsDiv = document.getElementById(`results-${version}`);
+            const btn = document.getElementById(`extract-btn-${version}`);
+
+            // Show loading
+            btn.disabled = true;
+            resultsDiv.innerHTML = `
+                <div class="loading">
+                    <div class="loading-spinner"></div>
+                    <p style="margin-top: 1rem;">Processing...</p>
+                </div>
+            `;
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            const endpoint = version === 'v1' ? '/extract' : '/extract/v2';
+
+            try {
+                const response = await fetch(`${API_BASE}${endpoint}`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (version === 'v1') {
+                    renderV1Results(data, resultsDiv);
+                } else {
+                    renderV2Results(data, resultsDiv);
+                }
+            } catch (error) {
+                resultsDiv.innerHTML = `
+                    <div class="error-message">
+                        <strong>Error:</strong> ${error.message}
+                        <br><br>
+                        Make sure the API is running at ${API_BASE}
+                    </div>
+                `;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        // Render V1 results
+        function renderV1Results(data, container) {
+            if (!data.success || !data.results.length) {
+                container.innerHTML = '<p style="color: rgba(255,255,255,0.5); text-align: center;">No text detected</p>';
+                return;
+            }
+
+            let html = `
+                <div class="avg-confidence">
+                    <div class="avg-score">${(data.average_confidence * 100).toFixed(1)}%</div>
+                    <div class="avg-label">Average Confidence</div>
+                </div>
+            `;
+
+            data.results.forEach(result => {
+                const confClass = result.confidence >= 0.9 ? '' : result.confidence >= 0.7 ? 'medium' : 'low';
+                const approvedClass = result.approved ? 'badge-approved' : 'badge-not-approved';
+                const approvedText = result.approved ? 'Approved' : 'Not Approved';
+
+                html += `
+                    <div class="result-item">
+                        <span class="result-text">${result.text}</span>
+                        <div class="result-badges">
+                            <span class="badge badge-confidence ${confClass}">${(result.confidence * 100).toFixed(0)}%</span>
+                            <span class="badge ${approvedClass}">${approvedText}</span>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `
+                <div style="margin-top: 1.5rem;">
+                    <div class="card-title">Full Text</div>
+                    <textarea class="full-text" readonly>${data.full_text}</textarea>
+                </div>
+            `;
+
+            container.innerHTML = html;
+        }
+
+        // Render V2 results
+        function renderV2Results(data, container) {
+            if (!data.success || !data.results.length) {
+                container.innerHTML = '<p style="color: rgba(255,255,255,0.5); text-align: center;">No text detected</p>';
+                return;
+            }
+
+            const hallmark = data.hallmark;
+            const bisCertified = hallmark.bis_certified;
+            const bisClass = bisCertified ? 'bis-certified' : 'bis-not-certified';
+            const bisText = bisCertified ? 'BIS Certified' : 'Not Certified';
+
+            let hallmarkItems = '';
+            if (hallmark.purity_code) {
+                hallmarkItems += `<div class="hallmark-item"><span class="hallmark-label">Purity Code</span><span class="hallmark-value">${hallmark.purity_code}</span></div>`;
+            }
+            if (hallmark.karat) {
+                hallmarkItems += `<div class="hallmark-item"><span class="hallmark-label">Karat</span><span class="hallmark-value">${hallmark.karat}</span></div>`;
+            }
+            if (hallmark.purity_percentage) {
+                hallmarkItems += `<div class="hallmark-item"><span class="hallmark-label">Purity</span><span class="hallmark-value">${hallmark.purity_percentage}%</span></div>`;
+            }
+            if (hallmark.huid) {
+                hallmarkItems += `<div class="hallmark-item"><span class="hallmark-label">HUID</span><span class="hallmark-value">${hallmark.huid}</span></div>`;
+            }
+            if (!hallmarkItems) {
+                hallmarkItems = '<div class="hallmark-item"><span class="hallmark-label" style="color: rgba(255,255,255,0.4);">No hallmark data detected</span></div>';
+            }
+
+            let html = `
+                <div class="avg-confidence">
+                    <div class="avg-score">${(data.average_confidence * 100).toFixed(1)}%</div>
+                    <div class="avg-label">Average Confidence</div>
+                </div>
+
+                <div class="hallmark-card">
+                    <div class="hallmark-title">
+                        Hallmark Information
+                        <span class="bis-badge ${bisClass}">${bisText}</span>
+                    </div>
+                    ${hallmarkItems}
+                </div>
+            `;
+
+            data.results.forEach(result => {
+                const confClass = result.confidence >= 0.9 ? '' : result.confidence >= 0.7 ? 'medium' : 'low';
+                const approvedClass = result.approved ? 'badge-approved' : 'badge-not-approved';
+                const approvedText = result.approved ? 'Approved' : 'Not Approved';
+
+                let typeBadge = '';
+                if (result.hallmark_type === 'purity_mark') {
+                    typeBadge = '<span class="badge badge-type">Purity</span>';
+                } else if (result.hallmark_type === 'huid') {
+                    typeBadge = '<span class="badge badge-type" style="background: rgba(149,213,178,0.2); color: #95d5b2;">HUID</span>';
+                }
+
+                const validatedBadge = result.validated ? '<span class="badge badge-validated">Validated</span>' : '';
+
+                html += `
+                    <div class="result-item">
+                        <span class="result-text">${result.text} ${typeBadge} ${validatedBadge}</span>
+                        <div class="result-badges">
+                            <span class="badge badge-confidence ${confClass}">${(result.confidence * 100).toFixed(0)}%</span>
+                            <span class="badge ${approvedClass}">${approvedText}</span>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += `
+                <div style="margin-top: 1.5rem;">
+                    <div class="card-title">Full Text</div>
+                    <textarea class="full-text" readonly>${data.full_text}</textarea>
+                </div>
+            `;
+
+            container.innerHTML = html;
+        }
+    </script>
+</body>
+</html>

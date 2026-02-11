@@ -1,11 +1,13 @@
 """
 Streamlit Dashboard for OCR Text Detection.
 Premium minimalist design with dark theme using Lexend font.
+Supports V1 (standard) and V2 (hallmark-specific) OCR.
 """
 
 import streamlit as st
 from PIL import Image
 from ocr_model import OCREngine
+from ocr_model_v2 import OCREngineV2, HallmarkType
 from history import add_to_history, get_history, clear_history
 
 
@@ -577,14 +579,158 @@ st.markdown("""
     ::-webkit-scrollbar-thumb:hover {
         background: rgba(252, 163, 17, 0.5);
     }
+
+    /* Tab styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background: rgba(255, 255, 255, 0.03);
+        border-radius: 16px;
+        padding: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        height: 45px;
+        background: transparent;
+        border-radius: 12px;
+        color: rgba(255, 255, 255, 0.5);
+        font-weight: 500;
+        font-size: 0.9rem;
+        padding: 0 24px;
+        border: none;
+        font-family: 'Lexend', sans-serif !important;
+    }
+
+    .stTabs [data-baseweb="tab"]:hover {
+        background: rgba(252, 163, 17, 0.1);
+        color: #ffffff;
+    }
+
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #fca311 0%, #e09000 100%) !important;
+        color: #000000 !important;
+        font-weight: 600;
+    }
+
+    .stTabs [data-baseweb="tab-highlight"] {
+        display: none;
+    }
+
+    .stTabs [data-baseweb="tab-border"] {
+        display: none;
+    }
+
+    /* Hallmark info card */
+    .hallmark-card {
+        background: linear-gradient(145deg, #1a4d2e 0%, #14213d 100%);
+        border-radius: 16px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        border: 1px solid rgba(149, 213, 178, 0.3);
+    }
+
+    .hallmark-title {
+        color: #95d5b2;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        margin-bottom: 1rem;
+    }
+
+    .hallmark-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .hallmark-item:last-child {
+        border-bottom: none;
+    }
+
+    .hallmark-label {
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 0.85rem;
+    }
+
+    .hallmark-value {
+        color: #fca311;
+        font-weight: 600;
+        font-size: 0.9rem;
+    }
+
+    .bis-badge {
+        display: inline-block;
+        padding: 0.375rem 0.875rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .bis-certified {
+        background: linear-gradient(135deg, #1a4d2e 0%, #2d6a4f 100%);
+        color: #95d5b2;
+    }
+
+    .bis-not-certified {
+        background: linear-gradient(135deg, #4d3a1a 0%, #6a4d08 100%);
+        color: #fca311;
+    }
+
+    /* Type badge */
+    .type-badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border-radius: 6px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-left: 0.5rem;
+    }
+
+    .type-purity {
+        background: rgba(252, 163, 17, 0.2);
+        color: #fca311;
+    }
+
+    .type-huid {
+        background: rgba(149, 213, 178, 0.2);
+        color: #95d5b2;
+    }
+
+    .type-unknown {
+        background: rgba(255, 255, 255, 0.1);
+        color: rgba(255, 255, 255, 0.5);
+    }
+
+    .validated-badge {
+        background: linear-gradient(135deg, #1a4d2e 0%, #2d6a4f 100%);
+        color: #95d5b2;
+        padding: 0.25rem 0.5rem;
+        border-radius: 6px;
+        font-size: 0.65rem;
+        font-weight: 600;
+        margin-left: 0.5rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 
 @st.cache_resource
 def load_ocr_engine():
-    """Load OCR engine (cached for performance)."""
+    """Load OCR engine V1 (cached for performance)."""
     return OCREngine()
+
+
+@st.cache_resource
+def load_ocr_engine_v2():
+    """Load OCR engine V2 with hallmark detection (cached for performance)."""
+    return OCREngineV2(enable_preprocessing=True)
 
 
 def render_steps(current_step):
@@ -619,7 +765,7 @@ def get_confidence_class(score: float) -> str:
 
 
 def render_confidence_results(results: list):
-    """Render OCR results with confidence scores."""
+    """Render OCR results with confidence scores (V1)."""
     if not results:
         st.info("No text detected in this image.")
         return
@@ -646,6 +792,116 @@ def render_confidence_results(results: list):
         st.markdown(f"""
         <div class="confidence-item">
             <span class="confidence-text">{r.text}</span>
+            <div class="confidence-badges">
+                <span class="confidence-score {conf_class}">{r.confidence * 100:.0f}%</span>
+                <span class="approval-badge {approval_class}">{approval_text}</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+
+def render_hallmark_info(hallmark_info):
+    """Render hallmark-specific information card."""
+    bis_class = "bis-certified" if hallmark_info.bis_certified else "bis-not-certified"
+    bis_text = "BIS Certified" if hallmark_info.bis_certified else "Not Certified"
+
+    items_html = ""
+
+    if hallmark_info.purity_code:
+        items_html += f"""
+        <div class="hallmark-item">
+            <span class="hallmark-label">Purity Code</span>
+            <span class="hallmark-value">{hallmark_info.purity_code}</span>
+        </div>
+        """
+
+    if hallmark_info.karat:
+        items_html += f"""
+        <div class="hallmark-item">
+            <span class="hallmark-label">Karat</span>
+            <span class="hallmark-value">{hallmark_info.karat}</span>
+        </div>
+        """
+
+    if hallmark_info.purity_percentage:
+        items_html += f"""
+        <div class="hallmark-item">
+            <span class="hallmark-label">Purity</span>
+            <span class="hallmark-value">{hallmark_info.purity_percentage}%</span>
+        </div>
+        """
+
+    if hallmark_info.huid:
+        items_html += f"""
+        <div class="hallmark-item">
+            <span class="hallmark-label">HUID</span>
+            <span class="hallmark-value">{hallmark_info.huid}</span>
+        </div>
+        """
+
+    if not items_html:
+        items_html = """
+        <div class="hallmark-item">
+            <span class="hallmark-label" style="color: rgba(255,255,255,0.4);">No hallmark data detected</span>
+        </div>
+        """
+
+    st.markdown(f"""
+    <div class="hallmark-card">
+        <div class="hallmark-title">
+            Hallmark Information
+            <span class="bis-badge {bis_class}">{bis_text}</span>
+        </div>
+        {items_html}
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def render_confidence_results_v2(results: list, hallmark_info):
+    """Render OCR results with confidence scores and hallmark info (V2)."""
+    if not results:
+        st.info("No text detected in this image.")
+        return
+
+    # Calculate average confidence
+    avg_conf = sum(r.confidence for r in results) / len(results)
+
+    # Display average confidence
+    st.markdown(f"""
+    <div class="avg-confidence">
+        <div class="avg-score">{avg_conf * 100:.1f}%</div>
+        <div class="avg-label">Confidence Score</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Display hallmark info card
+    render_hallmark_info(hallmark_info)
+
+    # Display individual results
+    st.markdown('<p class="output-label">Detected Text</p>', unsafe_allow_html=True)
+
+    for r in results:
+        conf_class = get_confidence_class(r.confidence)
+        is_approved = r.confidence >= 0.75
+        approval_class = "approved" if is_approved else "not-approved"
+        approval_text = "Approved" if is_approved else "Not Approved"
+
+        # Type badge
+        type_class = "type-unknown"
+        type_text = ""
+        if r.hallmark_type == HallmarkType.PURITY_MARK:
+            type_class = "type-purity"
+            type_text = "Purity"
+        elif r.hallmark_type == HallmarkType.HUID:
+            type_class = "type-huid"
+            type_text = "HUID"
+
+        type_badge = f'<span class="type-badge {type_class}">{type_text}</span>' if type_text else ""
+        validated_badge = '<span class="validated-badge">Validated</span>' if r.validated else ""
+
+        st.markdown(f"""
+        <div class="confidence-item">
+            <span class="confidence-text">{r.text}{type_badge}{validated_badge}</span>
             <div class="confidence-badges">
                 <span class="confidence-score {conf_class}">{r.confidence * 100:.0f}%</span>
                 <span class="approval-badge {approval_class}">{approval_text}</span>
@@ -695,66 +951,52 @@ def render_history_sidebar():
                 st.markdown("---")
 
 
-def main():
-    # Render history sidebar
-    render_history_sidebar()
+def render_v1_tab():
+    """Render the V1 (Standard OCR) tab content."""
+    # Initialize V1 session state
+    if "ocr_results_v1" not in st.session_state:
+        st.session_state.ocr_results_v1 = None
+    if "processed_v1" not in st.session_state:
+        st.session_state.processed_v1 = False
+    if "current_image_v1" not in st.session_state:
+        st.session_state.current_image_v1 = None
+    if "processing_v1" not in st.session_state:
+        st.session_state.processing_v1 = False
 
-    # Header
-    st.markdown('<h1 class="main-header">OCR Studio</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">Premium Text Extraction</p>', unsafe_allow_html=True)
-
-    # Initialize session state
-    if "ocr_results" not in st.session_state:
-        st.session_state.ocr_results = None
-    if "processed" not in st.session_state:
-        st.session_state.processed = False
-    if "current_image" not in st.session_state:
-        st.session_state.current_image = None
-    if "processing" not in st.session_state:
-        st.session_state.processing = False
-
-    # Main content area
     col_main, col_results = st.columns([1, 1], gap="large")
 
     with col_main:
-        # File uploader
         uploaded_file = st.file_uploader(
             "Drop an image here or click to upload",
             type=["png", "jpg", "jpeg", "bmp", "webp"],
             help="Supported: PNG, JPG, JPEG, BMP, WEBP",
-            label_visibility="collapsed"
+            label_visibility="collapsed",
+            key="uploader_v1"
         )
 
         if uploaded_file:
-            # Determine current step
-            if st.session_state.processed and st.session_state.ocr_results is not None:
+            if st.session_state.processed_v1 and st.session_state.ocr_results_v1 is not None:
                 current_step = 2
             else:
                 current_step = 1
 
-            # Show progress steps
             render_steps(current_step)
 
-            # Display uploaded image
             image = Image.open(uploaded_file)
-            st.session_state.current_image = image.copy()
+            st.session_state.current_image_v1 = image.copy()
             st.image(image, use_container_width=True)
 
             st.markdown("<div style='height: 1rem'></div>", unsafe_allow_html=True)
 
-            # Extract button
-            if st.button("Extract Text", use_container_width=True):
-                st.session_state.processing = True
+            if st.button("Extract Text", use_container_width=True, key="extract_v1"):
+                st.session_state.processing_v1 = True
                 st.rerun()
-
         else:
-            # Reset state when no file
-            st.session_state.ocr_results = None
-            st.session_state.processed = False
-            st.session_state.current_image = None
+            st.session_state.ocr_results_v1 = None
+            st.session_state.processed_v1 = False
+            st.session_state.current_image_v1 = None
             render_steps(0)
 
-            # Upload prompt
             st.markdown("""
             <div class="upload-prompt">
                 <p style="font-size: 1.2rem; font-weight: 400;">Drop your image here</p>
@@ -763,8 +1005,7 @@ def main():
             """, unsafe_allow_html=True)
 
     with col_results:
-        if st.session_state.processing and st.session_state.current_image is not None:
-            # Show processing status
+        if st.session_state.processing_v1 and st.session_state.current_image_v1 is not None:
             status_placeholder = st.empty()
 
             with status_placeholder.container():
@@ -776,7 +1017,6 @@ def main():
                 </div>
                 """, unsafe_allow_html=True)
 
-            # Load model and process
             ocr_engine = load_ocr_engine()
 
             status_placeholder.markdown("""
@@ -787,34 +1027,30 @@ def main():
             </div>
             """, unsafe_allow_html=True)
 
-            # Extract text with confidence
-            results = ocr_engine.extract_text_with_confidence(st.session_state.current_image)
-            st.session_state.ocr_results = results
-            st.session_state.processed = True
-            st.session_state.processing = False
+            results = ocr_engine.extract_text_with_confidence(st.session_state.current_image_v1)
+            st.session_state.ocr_results_v1 = results
+            st.session_state.processed_v1 = True
+            st.session_state.processing_v1 = False
 
-            # Save to history
             if results:
                 avg_conf = sum(r.confidence for r in results) / len(results)
                 text = "\n".join([r.text for r in results])
-                add_to_history(st.session_state.current_image, text, avg_conf)
+                add_to_history(st.session_state.current_image_v1, text, avg_conf)
 
             status_placeholder.empty()
             st.rerun()
 
-        elif st.session_state.processed and st.session_state.ocr_results is not None:
+        elif st.session_state.processed_v1 and st.session_state.ocr_results_v1 is not None:
             st.markdown('<div class="output-container">', unsafe_allow_html=True)
-            render_confidence_results(st.session_state.ocr_results)
+            render_confidence_results(st.session_state.ocr_results_v1)
 
-            # Combined text area
-            if st.session_state.ocr_results:
-                combined_text = "\n".join([r.text for r in st.session_state.ocr_results])
+            if st.session_state.ocr_results_v1:
+                combined_text = "\n".join([r.text for r in st.session_state.ocr_results_v1])
                 st.markdown('<p class="output-label" style="margin-top: 1.5rem;">Full Text</p>', unsafe_allow_html=True)
-                st.text_area("Full text", combined_text, height=150, label_visibility="collapsed")
+                st.text_area("Full text", combined_text, height=150, label_visibility="collapsed", key="text_v1")
 
             st.markdown('</div>', unsafe_allow_html=True)
         else:
-            # Placeholder for results
             st.markdown("""
             <div style="
                 background: rgba(255, 255, 255, 0.02);
@@ -828,6 +1064,144 @@ def main():
                 <p style="font-size: 0.8rem;">Upload an image and click Extract</p>
             </div>
             """, unsafe_allow_html=True)
+
+
+def render_v2_tab():
+    """Render the V2 (Hallmark OCR) tab content."""
+    # Initialize V2 session state
+    if "ocr_results_v2" not in st.session_state:
+        st.session_state.ocr_results_v2 = None
+    if "hallmark_info_v2" not in st.session_state:
+        st.session_state.hallmark_info_v2 = None
+    if "processed_v2" not in st.session_state:
+        st.session_state.processed_v2 = False
+    if "current_image_v2" not in st.session_state:
+        st.session_state.current_image_v2 = None
+    if "processing_v2" not in st.session_state:
+        st.session_state.processing_v2 = False
+
+    col_main, col_results = st.columns([1, 1], gap="large")
+
+    with col_main:
+        uploaded_file = st.file_uploader(
+            "Drop an image here or click to upload",
+            type=["png", "jpg", "jpeg", "bmp", "webp"],
+            help="Supported: PNG, JPG, JPEG, BMP, WEBP",
+            label_visibility="collapsed",
+            key="uploader_v2"
+        )
+
+        if uploaded_file:
+            if st.session_state.processed_v2 and st.session_state.ocr_results_v2 is not None:
+                current_step = 2
+            else:
+                current_step = 1
+
+            render_steps(current_step)
+
+            image = Image.open(uploaded_file)
+            st.session_state.current_image_v2 = image.copy()
+            st.image(image, use_container_width=True)
+
+            st.markdown("<div style='height: 1rem'></div>", unsafe_allow_html=True)
+
+            if st.button("Extract Hallmark", use_container_width=True, key="extract_v2"):
+                st.session_state.processing_v2 = True
+                st.rerun()
+        else:
+            st.session_state.ocr_results_v2 = None
+            st.session_state.hallmark_info_v2 = None
+            st.session_state.processed_v2 = False
+            st.session_state.current_image_v2 = None
+            render_steps(0)
+
+            st.markdown("""
+            <div class="upload-prompt">
+                <p style="font-size: 1.2rem; font-weight: 400;">Drop your hallmark image here</p>
+                <p style="font-size: 0.85rem;">PNG, JPG, JPEG, BMP, or WEBP</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+    with col_results:
+        if st.session_state.processing_v2 and st.session_state.current_image_v2 is not None:
+            status_placeholder = st.empty()
+
+            with status_placeholder.container():
+                st.markdown("""
+                <div class="processing-status">
+                    <div class="processing-step done">&#10003; Image loaded</div>
+                    <div class="processing-step active">&#9679; Preprocessing...</div>
+                    <div class="processing-step pending">&#9675; Detecting hallmarks</div>
+                    <div class="processing-step pending">&#9675; Validating</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            ocr_engine_v2 = load_ocr_engine_v2()
+
+            status_placeholder.markdown("""
+            <div class="processing-status">
+                <div class="processing-step done">&#10003; Image loaded</div>
+                <div class="processing-step done">&#10003; Preprocessed</div>
+                <div class="processing-step active">&#9679; Detecting...</div>
+                <div class="processing-step pending">&#9675; Validating</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            hallmark_info = ocr_engine_v2.extract_with_hallmark_info(st.session_state.current_image_v2)
+            st.session_state.ocr_results_v2 = hallmark_info.all_results
+            st.session_state.hallmark_info_v2 = hallmark_info
+            st.session_state.processed_v2 = True
+            st.session_state.processing_v2 = False
+
+            if hallmark_info.all_results:
+                text = "\n".join([r.text for r in hallmark_info.all_results])
+                add_to_history(st.session_state.current_image_v2, text, hallmark_info.overall_confidence)
+
+            status_placeholder.empty()
+            st.rerun()
+
+        elif st.session_state.processed_v2 and st.session_state.ocr_results_v2 is not None:
+            st.markdown('<div class="output-container">', unsafe_allow_html=True)
+            render_confidence_results_v2(st.session_state.ocr_results_v2, st.session_state.hallmark_info_v2)
+
+            if st.session_state.ocr_results_v2:
+                combined_text = "\n".join([r.text for r in st.session_state.ocr_results_v2])
+                st.markdown('<p class="output-label" style="margin-top: 1.5rem;">Full Text</p>', unsafe_allow_html=True)
+                st.text_area("Full text", combined_text, height=150, label_visibility="collapsed", key="text_v2")
+
+            st.markdown('</div>', unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            <div style="
+                background: rgba(255, 255, 255, 0.02);
+                border: 2px dashed rgba(252, 163, 17, 0.15);
+                border-radius: 24px;
+                padding: 4rem 2rem;
+                text-align: center;
+                color: rgba(255, 255, 255, 0.25);
+            ">
+                <p style="font-size: 1rem; margin-bottom: 0.5rem;">Results will appear here</p>
+                <p style="font-size: 0.8rem;">Upload a hallmark image and click Extract</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+
+def main():
+    # Render history sidebar
+    render_history_sidebar()
+
+    # Header
+    st.markdown('<h1 class="main-header">OCR Studio</h1>', unsafe_allow_html=True)
+    st.markdown('<p class="sub-header">Premium Text Extraction</p>', unsafe_allow_html=True)
+
+    # Tabs for V1 and V2
+    tab1, tab2 = st.tabs(["Standard OCR", "Hallmark OCR V2"])
+
+    with tab1:
+        render_v1_tab()
+
+    with tab2:
+        render_v2_tab()
 
 
 if __name__ == "__main__":
