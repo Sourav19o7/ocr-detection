@@ -26,6 +26,7 @@ class HallmarkType(Enum):
     HUID = "huid"
     BIS_LOGO = "bis_logo"
     JEWELER_MARK = "jeweler_mark"
+    CHECK = "check"
     UNKNOWN = "unknown"
 
 
@@ -41,6 +42,17 @@ class OCRResultV2:
 
 
 @dataclass
+class CheckInfo:
+    """Check/Cheque specific information."""
+    check_number: Optional[str] = None
+    micr_code: Optional[str] = None
+    ifsc_code: Optional[str] = None
+    account_number: Optional[str] = None
+    bank_name: Optional[str] = None
+    is_valid_check: bool = False
+
+
+@dataclass
 class HallmarkInfo:
     """Complete hallmark information after validation."""
     purity_code: Optional[str] = None
@@ -50,6 +62,8 @@ class HallmarkInfo:
     bis_certified: bool = False
     overall_confidence: float = 0.0
     all_results: List[OCRResultV2] = field(default_factory=list)
+    # Check information
+    check_info: Optional[CheckInfo] = None
 
 
 @dataclass
@@ -103,6 +117,33 @@ class HallmarkPatterns:
     OCR_CORRECTIONS = {
         'O': '0', 'I': '1', 'l': '1', 'S': '5', 'B': '8', 'G': '6',
     }
+
+    # Check/Cheque patterns (Indian banking)
+    # MICR code: 9 digits (City code 3 + Bank code 3 + Branch code 3)
+    MICR_PATTERN = re.compile(r'\b\d{9}\b')
+
+    # Check number: typically 6 digits
+    CHECK_NUMBER_PATTERN = re.compile(r'\b\d{6}\b')
+
+    # Account number: 9-18 digits (varies by bank)
+    ACCOUNT_NUMBER_PATTERN = re.compile(r'\b\d{9,18}\b')
+
+    # IFSC code: 4 letters + 0 + 6 alphanumeric (e.g., SBIN0001234)
+    IFSC_PATTERN = re.compile(r'\b[A-Z]{4}0[A-Z0-9]{6}\b')
+
+    # Common check keywords
+    CHECK_KEYWORDS = [
+        "PAY", "BEARER", "ORDER", "ACCOUNT", "PAYEE", "A/C", "CHEQUE",
+        "CHECK", "BANK", "BRANCH", "IFSC", "MICR", "DATE", "RUPEES",
+        "RS", "INR", "ONLY", "LAKH", "CRORE", "THOUSAND", "HUNDRED"
+    ]
+
+    # Bank names (common Indian banks)
+    BANK_NAMES = [
+        "STATE BANK", "SBI", "HDFC", "ICICI", "AXIS", "KOTAK", "PNB",
+        "BANK OF BARODA", "BOB", "CANARA", "UNION BANK", "IDBI", "YES BANK",
+        "INDUSIND", "FEDERAL BANK", "RBL", "BANDHAN", "IDFC", "AU BANK"
+    ]
 
 
 class ImagePreprocessorV2:
@@ -243,28 +284,37 @@ class HallmarkValidator:
     def classify_text(self, text: str) -> HallmarkType:
         """Classify the type of hallmark text."""
         cleaned = text.upper().strip()
-        cleaned = re.sub(r'[^A-Z0-9]', '', cleaned)
+        cleaned_alphanum = re.sub(r'[^A-Z0-9]', '', cleaned)
+
+        # Check for check/cheque indicators first (higher priority for document detection)
+        if self.is_check_text(text):
+            return HallmarkType.CHECK
 
         # Check for purity marks
         for alias in self.patterns.PURITY_ALIASES:
-            if alias in cleaned:
+            if alias in cleaned_alphanum:
                 return HallmarkType.PURITY_MARK
 
         # Check for 3-digit purity codes
-        purity_codes = re.findall(r'\d{3}', cleaned)
+        purity_codes = re.findall(r'\d{3}', cleaned_alphanum)
         for code in purity_codes:
             if code in self.patterns.GOLD_PURITY_GRADES or code in self.patterns.SILVER_PURITY_GRADES:
                 return HallmarkType.PURITY_MARK
 
-        # Check for HUID (6 alphanumeric)
-        if len(cleaned) == 6 and self.patterns.HUID_PATTERN.match(cleaned):
-            return HallmarkType.HUID
-
-        # Check for potential HUID within text
-        huid_matches = re.findall(r'[A-Z0-9]{6}', cleaned)
-        for match in huid_matches:
-            if self.patterns.HUID_PATTERN.match(match):
+        # Check for HUID (6 alphanumeric) - must contain at least one letter
+        # HUID is typically all letters or alphanumeric, not pure digits
+        if len(cleaned_alphanum) == 6 and self.patterns.HUID_PATTERN.match(cleaned_alphanum):
+            # Ensure it's not just digits (those are likely other codes)
+            if re.search(r'[A-Z]', cleaned_alphanum):
                 return HallmarkType.HUID
+
+        # Check for potential HUID within text (6 consecutive alphanumeric with at least one letter)
+        huid_matches = re.findall(r'[A-Z0-9]{6}', cleaned_alphanum)
+        for match in huid_matches:
+            if self.patterns.HUID_PATTERN.match(match) and re.search(r'[A-Z]', match):
+                # Skip if it's a known purity alias like "22K916"
+                if match not in self.patterns.PURITY_ALIASES:
+                    return HallmarkType.HUID
 
         return HallmarkType.UNKNOWN
 
@@ -327,16 +377,30 @@ class HallmarkValidator:
         cleaned = text.upper().strip()
         cleaned = re.sub(r'[^A-Z0-9]', '', cleaned)
 
-        # Find 6-character sequences
+        # Find 6-character alphanumeric sequences
         matches = re.findall(r'[A-Z0-9]{6}', cleaned)
 
         for match in matches:
             if self.patterns.HUID_PATTERN.match(match):
-                return {
-                    "valid": True,
-                    "huid": match,
-                    "format_valid": True
-                }
+                # Skip known purity aliases (like 22K916)
+                if match in self.patterns.PURITY_ALIASES:
+                    continue
+                # HUID should have at least one letter (not pure digits)
+                if re.search(r'[A-Z]', match):
+                    return {
+                        "valid": True,
+                        "huid": match,
+                        "format_valid": True
+                    }
+
+        # Also try to find HUID patterns that are purely alphabetic (common format)
+        alpha_matches = re.findall(r'[A-Z]{6}', cleaned)
+        for match in alpha_matches:
+            return {
+                "valid": True,
+                "huid": match,
+                "format_valid": True
+            }
 
         return {"valid": False, "raw_text": text}
 
@@ -345,6 +409,76 @@ class HallmarkValidator:
         result = text
         for wrong, correct in self.patterns.OCR_CORRECTIONS.items():
             result = result.replace(wrong, correct)
+        return result
+
+    def is_check_text(self, text: str) -> bool:
+        """Check if text contains check/cheque related content."""
+        upper_text = text.upper()
+
+        # Check for check keywords
+        keyword_count = sum(1 for kw in self.patterns.CHECK_KEYWORDS if kw in upper_text)
+
+        # Check for bank names
+        bank_found = any(bank in upper_text for bank in self.patterns.BANK_NAMES)
+
+        # Check for IFSC pattern
+        ifsc_found = bool(self.patterns.IFSC_PATTERN.search(upper_text))
+
+        # Check for MICR pattern (9 digits)
+        micr_found = bool(self.patterns.MICR_PATTERN.search(text))
+
+        # Classify as check if multiple indicators are present
+        return (keyword_count >= 2) or bank_found or ifsc_found or (keyword_count >= 1 and micr_found)
+
+    def validate_check(self, text: str) -> Dict:
+        """Validate and extract check information from text."""
+        upper_text = text.upper()
+        result = {
+            "valid": False,
+            "check_number": None,
+            "micr_code": None,
+            "ifsc_code": None,
+            "account_number": None,
+            "bank_name": None
+        }
+
+        # Extract IFSC code
+        ifsc_match = self.patterns.IFSC_PATTERN.search(upper_text)
+        if ifsc_match:
+            result["ifsc_code"] = ifsc_match.group()
+
+        # Extract MICR code (9 digits)
+        micr_matches = self.patterns.MICR_PATTERN.findall(text)
+        if micr_matches:
+            # MICR is typically the first 9-digit number
+            result["micr_code"] = micr_matches[0]
+
+        # Extract account number (9-18 digits)
+        account_matches = self.patterns.ACCOUNT_NUMBER_PATTERN.findall(text)
+        for acc in account_matches:
+            # Skip if it's the MICR code
+            if acc != result.get("micr_code") and len(acc) >= 10:
+                result["account_number"] = acc
+                break
+
+        # Extract check number (6 digits)
+        check_matches = self.patterns.CHECK_NUMBER_PATTERN.findall(text)
+        for chk in check_matches:
+            # Skip if it's part of MICR or account
+            if chk not in str(result.get("micr_code", "")) and chk not in str(result.get("account_number", "")):
+                result["check_number"] = chk
+                break
+
+        # Detect bank name
+        for bank in self.patterns.BANK_NAMES:
+            if bank in upper_text:
+                result["bank_name"] = bank
+                break
+
+        # Mark as valid if we found key check indicators
+        if result["ifsc_code"] or result["micr_code"] or (result["check_number"] and result["bank_name"]):
+            result["valid"] = True
+
         return result
 
 
@@ -399,7 +533,11 @@ class OCREngineV2:
 
         hallmark_info = HallmarkInfo(all_results=results)
 
+        # Collect all text for comprehensive HUID search
+        all_text = " ".join([r.text for r in results])
+
         # Process each result
+        check_data = {}
         for r in results:
             if r.hallmark_type == HallmarkType.PURITY_MARK and r.validated:
                 details = r.validation_details
@@ -412,6 +550,36 @@ class OCREngineV2:
                 details = r.validation_details
                 if details.get("valid"):
                     hallmark_info.huid = details.get("huid")
+
+            elif r.hallmark_type == HallmarkType.CHECK and r.validated:
+                details = r.validation_details
+                # Merge check data from multiple text regions
+                for key in ["check_number", "micr_code", "ifsc_code", "account_number", "bank_name"]:
+                    if details.get(key) and not check_data.get(key):
+                        check_data[key] = details.get(key)
+
+        # If HUID not found yet, scan all text for potential HUIDs
+        # This handles cases where HUID appears alongside purity marks in same text region
+        if not hallmark_info.huid:
+            huid_result = self.validator.validate_huid(all_text)
+            if huid_result.get("valid"):
+                potential_huid = huid_result.get("huid")
+                # Make sure it's not part of a purity code
+                if potential_huid and potential_huid not in HallmarkPatterns.PURITY_ALIASES:
+                    # Check it has at least one letter (not pure digits)
+                    if re.search(r'[A-Z]', potential_huid):
+                        hallmark_info.huid = potential_huid
+
+        # Build CheckInfo if check data was found
+        if check_data:
+            hallmark_info.check_info = CheckInfo(
+                check_number=check_data.get("check_number"),
+                micr_code=check_data.get("micr_code"),
+                ifsc_code=check_data.get("ifsc_code"),
+                account_number=check_data.get("account_number"),
+                bank_name=check_data.get("bank_name"),
+                is_valid_check=bool(check_data.get("ifsc_code") or check_data.get("micr_code"))
+            )
 
         # Calculate overall confidence
         if results:
@@ -432,15 +600,8 @@ class OCREngineV2:
         Returns:
             List of OCRResultV2 objects with hallmark-specific information
         """
-        # Preprocess image
-        if self.enable_preprocessing:
-            processed = self.preprocessor.process(image)
-            # Use the enhanced version for OCR
-            img_for_ocr = processed["for_ocr"]
-            # Convert BGR to RGB for PaddleOCR
-            img_for_ocr = cv2.cvtColor(img_for_ocr, cv2.COLOR_BGR2RGB)
-        else:
-            img_for_ocr = np.array(image)
+        # Use raw image directly without preprocessing
+        img_for_ocr = np.array(image)
 
         # Run OCR
         result = self.ocr.predict(img_for_ocr)
@@ -471,6 +632,10 @@ class OCREngineV2:
 
                     elif hallmark_type == HallmarkType.HUID:
                         validation_details = self.validator.validate_huid(text)
+                        validated = validation_details.get("valid", False)
+
+                    elif hallmark_type == HallmarkType.CHECK:
+                        validation_details = self.validator.validate_check(text)
                         validated = validation_details.get("valid", False)
 
                     # Get bounding box

@@ -14,7 +14,7 @@ import sys
 # Import OCR engines
 sys.path.insert(0, "src")
 from ocr_model import OCREngine, OCRResult
-from ocr_model_v2 import OCREngineV2, OCRResultV2, HallmarkInfo, HallmarkType
+from ocr_model_v2 import OCREngineV2, OCRResultV2, HallmarkInfo, HallmarkType, CheckInfo
 
 
 app = FastAPI(
@@ -60,6 +60,15 @@ class TextResultV2(BaseModel):
     validation_details: dict
 
 
+class CheckData(BaseModel):
+    check_number: Optional[str] = None
+    micr_code: Optional[str] = None
+    ifsc_code: Optional[str] = None
+    account_number: Optional[str] = None
+    bank_name: Optional[str] = None
+    is_valid_check: bool = False
+
+
 class HallmarkData(BaseModel):
     purity_code: Optional[str] = None
     karat: Optional[str] = None
@@ -74,6 +83,7 @@ class OCRResponseV2(BaseModel):
     full_text: str
     average_confidence: float
     hallmark: HallmarkData
+    check: Optional[CheckData] = None
 
 
 @app.on_event("startup")
@@ -203,6 +213,18 @@ async def extract_text_v2(file: UploadFile = File(...)):
 
         full_text = "\n".join([r.text for r in hallmark_info.all_results])
 
+        # Build check data if available
+        check_data = None
+        if hallmark_info.check_info:
+            check_data = CheckData(
+                check_number=hallmark_info.check_info.check_number,
+                micr_code=hallmark_info.check_info.micr_code,
+                ifsc_code=hallmark_info.check_info.ifsc_code,
+                account_number=hallmark_info.check_info.account_number,
+                bank_name=hallmark_info.check_info.bank_name,
+                is_valid_check=hallmark_info.check_info.is_valid_check
+            )
+
         return OCRResponseV2(
             success=True,
             results=results,
@@ -214,7 +236,8 @@ async def extract_text_v2(file: UploadFile = File(...)):
                 purity_percentage=hallmark_info.purity_percentage,
                 huid=hallmark_info.huid,
                 bis_certified=hallmark_info.bis_certified
-            )
+            ),
+            check=check_data
         )
 
     except Exception as e:

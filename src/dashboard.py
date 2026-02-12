@@ -703,9 +703,76 @@ st.markdown("""
         color: #95d5b2;
     }
 
+    .type-check {
+        background: rgba(100, 149, 237, 0.2);
+        color: #6495ed;
+    }
+
     .type-unknown {
         background: rgba(255, 255, 255, 0.1);
         color: rgba(255, 255, 255, 0.5);
+    }
+
+    /* Check info card */
+    .check-card {
+        background: linear-gradient(145deg, #1a3d5c 0%, #14213d 100%);
+        border-radius: 16px;
+        padding: 1.5rem;
+        margin: 1rem 0;
+        border: 1px solid rgba(100, 149, 237, 0.3);
+    }
+
+    .check-title {
+        color: #6495ed;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        margin-bottom: 1rem;
+    }
+
+    .check-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .check-item:last-child {
+        border-bottom: none;
+    }
+
+    .check-label {
+        color: rgba(255, 255, 255, 0.6);
+        font-size: 0.85rem;
+    }
+
+    .check-value {
+        color: #6495ed;
+        font-weight: 600;
+        font-size: 0.9rem;
+        font-family: 'Courier New', monospace;
+    }
+
+    .check-badge {
+        display: inline-block;
+        padding: 0.375rem 0.875rem;
+        border-radius: 20px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .check-valid {
+        background: linear-gradient(135deg, #1a4d2e 0%, #2d6a4f 100%);
+        color: #95d5b2;
+    }
+
+    .check-invalid {
+        background: linear-gradient(135deg, #4d3a1a 0%, #6a4d08 100%);
+        color: #fca311;
     }
 
     .validated-badge {
@@ -800,6 +867,68 @@ def render_confidence_results(results: list):
         """, unsafe_allow_html=True)
 
 
+def render_check_info(check_info):
+    """Render check/cheque information card."""
+    if not check_info:
+        return
+
+    check_class = "check-valid" if check_info.is_valid_check else "check-invalid"
+    check_text = "Valid Check" if check_info.is_valid_check else "Incomplete"
+
+    items_html = ""
+
+    if check_info.bank_name:
+        items_html += f"""
+        <div class="check-item">
+            <span class="check-label">Bank Name</span>
+            <span class="check-value">{check_info.bank_name}</span>
+        </div>
+        """
+
+    if check_info.ifsc_code:
+        items_html += f"""
+        <div class="check-item">
+            <span class="check-label">IFSC Code</span>
+            <span class="check-value">{check_info.ifsc_code}</span>
+        </div>
+        """
+
+    if check_info.micr_code:
+        items_html += f"""
+        <div class="check-item">
+            <span class="check-label">MICR Code</span>
+            <span class="check-value">{check_info.micr_code}</span>
+        </div>
+        """
+
+    if check_info.account_number:
+        items_html += f"""
+        <div class="check-item">
+            <span class="check-label">Account Number</span>
+            <span class="check-value">{check_info.account_number}</span>
+        </div>
+        """
+
+    if check_info.check_number:
+        items_html += f"""
+        <div class="check-item">
+            <span class="check-label">Check Number</span>
+            <span class="check-value">{check_info.check_number}</span>
+        </div>
+        """
+
+    if items_html:
+        st.markdown(f"""
+        <div class="check-card">
+            <div class="check-title">
+                Check Information
+                <span class="check-badge {check_class}">{check_text}</span>
+            </div>
+            {items_html}
+        </div>
+        """, unsafe_allow_html=True)
+
+
 def render_hallmark_info(hallmark_info):
     """Render hallmark-specific information card."""
     bis_class = "bis-certified" if hallmark_info.bis_certified else "bis-not-certified"
@@ -839,22 +968,34 @@ def render_hallmark_info(hallmark_info):
         </div>
         """
 
-    if not items_html:
-        items_html = """
-        <div class="hallmark-item">
-            <span class="hallmark-label" style="color: rgba(255,255,255,0.4);">No hallmark data detected</span>
+    # Only show hallmark card if there's hallmark data
+    if items_html:
+        st.markdown(f"""
+        <div class="hallmark-card">
+            <div class="hallmark-title">
+                Hallmark Information
+                <span class="bis-badge {bis_class}">{bis_text}</span>
+            </div>
+            {items_html}
         </div>
-        """
+        """, unsafe_allow_html=True)
+    elif not hallmark_info.check_info:
+        # Only show "no data" if there's also no check info
+        st.markdown(f"""
+        <div class="hallmark-card">
+            <div class="hallmark-title">
+                Hallmark Information
+                <span class="bis-badge {bis_class}">{bis_text}</span>
+            </div>
+            <div class="hallmark-item">
+                <span class="hallmark-label" style="color: rgba(255,255,255,0.4);">No hallmark data detected</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-    st.markdown(f"""
-    <div class="hallmark-card">
-        <div class="hallmark-title">
-            Hallmark Information
-            <span class="bis-badge {bis_class}">{bis_text}</span>
-        </div>
-        {items_html}
-    </div>
-    """, unsafe_allow_html=True)
+    # Render check info if available
+    if hallmark_info.check_info:
+        render_check_info(hallmark_info.check_info)
 
 
 def render_confidence_results_v2(results: list, hallmark_info):
@@ -895,6 +1036,9 @@ def render_confidence_results_v2(results: list, hallmark_info):
         elif r.hallmark_type == HallmarkType.HUID:
             type_class = "type-huid"
             type_text = "HUID"
+        elif r.hallmark_type == HallmarkType.CHECK:
+            type_class = "type-check"
+            type_text = "Check"
 
         type_badge = f'<span class="type-badge {type_class}">{type_text}</span>' if type_text else ""
         validated_badge = '<span class="validated-badge">Validated</span>' if r.validated else ""
