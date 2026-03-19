@@ -227,11 +227,17 @@ st.markdown("""
         border: 1px solid #E8E2E4;
     }
 
-    /* Buttons */
+    /* Buttons - must also target inner span/p/div */
+    .stButton > button,
+    .stButton > button span,
+    .stButton > button p,
+    .stButton > button div {
+        background: #7B1F3A !important;
+        color: #FFFFFF !important;
+        border: none !important;
+    }
+
     .stButton > button {
-        background: #7B1F3A;
-        color: #FFFFFF;
-        border: none;
         border-radius: 6px;
         padding: 10px 20px;
         font-weight: 600;
@@ -242,14 +248,74 @@ st.markdown("""
         font-family: 'DM Sans', sans-serif !important;
     }
 
-    .stButton > button:hover {
-        background: #9B3A56;
-        transform: none;
-        box-shadow: none;
+    .stButton > button:hover,
+    .stButton > button:hover span {
+        background: #9B3A56 !important;
+        color: #FFFFFF !important;
     }
 
-    .stButton > button:active {
-        transform: none;
+    .stButton > button:active,
+    .stButton > button:active span {
+        background: #5A1529 !important;
+    }
+
+    /* Dropdown popup */
+    [data-baseweb="popover"],
+    [data-baseweb="menu"],
+    ul[role="listbox"] {
+        background: #FFFFFF !important;
+        border: 1px solid #E8E2E4 !important;
+        border-radius: 8px !important;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1) !important;
+    }
+
+    [data-baseweb="menu"] li,
+    ul[role="listbox"] li {
+        color: #2D2D2D !important;
+        background: #FFFFFF !important;
+    }
+
+    [data-baseweb="menu"] li:hover,
+    ul[role="listbox"] li:hover {
+        background: rgba(123,31,58,0.06) !important;
+        color: #7B1F3A !important;
+    }
+
+    /* Tab inner text - inherit from parent */
+    .stTabs [data-baseweb="tab"] span,
+    .stTabs [data-baseweb="tab"] div {
+        color: inherit !important;
+    }
+
+    /* Hide toolbar artifacts */
+    [data-testid="stToolbar"],
+    [data-testid="stDecoration"],
+    [data-testid="stStatusWidget"] {
+        display: none !important;
+    }
+
+    /* Sidebar collapse/expand buttons */
+    [data-testid="collapsedControl"] {
+        background: #FFFFFF !important;
+        border: 1px solid #E8E2E4 !important;
+    }
+
+    [data-testid="collapsedControl"] button {
+        background: transparent !important;
+        color: #7B1F3A !important;
+    }
+
+    /* File uploader buttons */
+    [data-testid="stFileUploader"] button,
+    [data-testid="stFileUploader"] button span {
+        background: #7B1F3A !important;
+        color: #FFFFFF !important;
+    }
+
+    [data-testid="stFileUploader"] button:hover,
+    [data-testid="stFileUploader"] button:hover span {
+        background: #9B3A56 !important;
+        color: #FFFFFF !important;
     }
 
     /* Progress steps */
@@ -562,17 +628,19 @@ st.markdown("""
         border: 1px solid #E8E2E4;
     }
 
-    [data-testid="stSidebar"] .stButton > button {
-        background: #F8F6F7;
-        color: #7B1F3A;
-        border: 1px solid #E8E2E4;
+    [data-testid="stSidebar"] .stButton > button,
+    [data-testid="stSidebar"] .stButton > button span {
+        background: #F8F6F7 !important;
+        color: #7B1F3A !important;
+        border: 1px solid #E8E2E4 !important;
         font-size: 11px;
         padding: 8px 14px;
     }
 
-    [data-testid="stSidebar"] .stButton > button:hover {
-        background: rgba(123, 31, 58, 0.06);
-        color: #7B1F3A;
+    [data-testid="stSidebar"] .stButton > button:hover,
+    [data-testid="stSidebar"] .stButton > button:hover span {
+        background: rgba(123, 31, 58, 0.06) !important;
+        color: #7B1F3A !important;
     }
 
     [data-testid="stSidebar"] hr {

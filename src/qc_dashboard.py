@@ -71,22 +71,68 @@ st.markdown("""
     max-width: 1360px;
 }
 
-/* ── Global text ────────────────────────────────────────── */
-html, body,
-h1, h2, h3, h4, h5, h6, p, li, span, label, div,
-[data-testid="stMarkdownContainer"],
-[data-testid="stMarkdownContainer"] * {
+/* ── Global text (targeted, not nuclear) ───────────────── */
+/* Only target Streamlit's markdown containers and headings - NOT generic
+   span/div/p which breaks buttons, tabs, dropdowns etc. */
+[data-testid="stMarkdownContainer"] h1,
+[data-testid="stMarkdownContainer"] h2,
+[data-testid="stMarkdownContainer"] h3,
+[data-testid="stMarkdownContainer"] h4,
+[data-testid="stMarkdownContainer"] h5,
+[data-testid="stMarkdownContainer"] h6,
+[data-testid="stMarkdownContainer"] p,
+[data-testid="stMarkdownContainer"] li,
+[data-testid="stMarkdownContainer"] td,
+[data-testid="stMarkdownContainer"] th,
+[data-testid="stMarkdownContainer"] strong,
+[data-testid="stMarkdownContainer"] em,
+[data-testid="stMarkdownContainer"] a {
     color: #2D2D2D !important;
 }
 
-/* Re-apply white to elements that NEED it (our own maroon components) */
-.qc-topbar, .qc-topbar * { color: #FFFFFF !important; }
+/* Caption text */
+[data-testid="stCaptionContainer"] span {
+    color: #5A5A6B !important;
+}
 
 /* ── Sidebar ────────────────────────────────────────────── */
-section[data-testid="stSidebar"] > div:first-child {
+section[data-testid="stSidebar"],
+section[data-testid="stSidebar"] > div {
     background: #FFFFFF !important;
+}
+
+[data-testid="stSidebar"] {
     border-right: 1px solid #E8E2E4 !important;
-    padding-top: 1.5rem !important;
+}
+
+/* Sidebar collapse button - fix the "keyboa.." issue */
+[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] button {
+    background: transparent !important;
+    color: #7B1F3A !important;
+    border: none !important;
+    padding: 4px !important;
+}
+
+[data-testid="stSidebar"] [data-testid="stSidebarCollapseButton"] svg {
+    color: #7B1F3A !important;
+}
+
+/* Sidebar expand button when collapsed */
+[data-testid="collapsedControl"] {
+    background: #FFFFFF !important;
+    border: 1px solid #E8E2E4 !important;
+    border-radius: 0 8px 8px 0 !important;
+    box-shadow: 2px 0 8px rgba(0,0,0,0.06) !important;
+}
+
+[data-testid="collapsedControl"] button {
+    background: transparent !important;
+    color: #7B1F3A !important;
+    border: none !important;
+}
+
+[data-testid="collapsedControl"] svg {
+    color: #7B1F3A !important;
 }
 
 [data-testid="stSidebar"] hr {
@@ -94,7 +140,7 @@ section[data-testid="stSidebar"] > div:first-child {
     margin: 12px 0 !important;
 }
 
-[data-testid="stSidebar"] a {
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] a {
     color: #7B1F3A !important;
     font-weight: 600 !important;
     font-size: 13px !important;
@@ -104,6 +150,13 @@ section[data-testid="stSidebar"] > div:first-child {
     background: #F8F6F7 !important;
     color: #7B1F3A !important;
     border: 1px solid #E8E2E4 !important;
+}
+
+/* ── Hide Streamlit header/toolbar artifacts ─────────────── */
+[data-testid="stToolbar"],
+[data-testid="stDecoration"],
+[data-testid="stStatusWidget"] {
+    display: none !important;
 }
 
 /* ── Tabs ───────────────────────────────────────────────── */
@@ -128,12 +181,22 @@ section[data-testid="stSidebar"] > div:first-child {
     transition: background 0.12s ease;
 }
 
+/* Tab inner text - must stay same color as tab */
+.stTabs [data-baseweb="tab"] span,
+.stTabs [data-baseweb="tab"] p,
+.stTabs [data-baseweb="tab"] div {
+    color: inherit !important;
+}
+
 .stTabs [data-baseweb="tab"]:hover {
     background: rgba(123,31,58,0.05) !important;
     color: #7B1F3A !important;
 }
 
-.stTabs [aria-selected="true"] {
+.stTabs [aria-selected="true"],
+.stTabs [aria-selected="true"] span,
+.stTabs [aria-selected="true"] p,
+.stTabs [aria-selected="true"] div {
     background: #7B1F3A !important;
     color: #FFFFFF !important;
     font-weight: 700;
@@ -143,10 +206,16 @@ section[data-testid="stSidebar"] > div:first-child {
 .stTabs [data-baseweb="tab-border"] { display: none !important; }
 
 /* ── Buttons ────────────────────────────────────────────── */
-.stButton > button {
+.stButton > button,
+.stButton > button span,
+.stButton > button p,
+.stButton > button div {
     background: #7B1F3A !important;
     color: #FFFFFF !important;
     border: none !important;
+}
+
+.stButton > button {
     border-radius: 7px;
     padding: 10px 24px;
     font-weight: 600;
@@ -154,12 +223,29 @@ section[data-testid="stSidebar"] > div:first-child {
     transition: background 0.12s ease;
 }
 
-.stButton > button:hover  { background: #9B3A56 !important; }
-.stButton > button:active { background: #5A1529 !important; }
+.stButton > button:hover,
+.stButton > button:hover span {
+    background: #9B3A56 !important;
+    color: #FFFFFF !important;
+}
+
+.stButton > button:active,
+.stButton > button:active span {
+    background: #5A1529 !important;
+    color: #FFFFFF !important;
+}
 
 .stButton > button:focus-visible {
     outline: 2px solid #7B1F3A !important;
     outline-offset: 2px !important;
+}
+
+/* Sidebar buttons override back */
+[data-testid="stSidebar"] .stButton > button,
+[data-testid="stSidebar"] .stButton > button span {
+    background: #F8F6F7 !important;
+    color: #7B1F3A !important;
+    border: 1px solid #E8E2E4 !important;
 }
 
 /* ── Form controls ──────────────────────────────────────── */
@@ -211,6 +297,37 @@ section[data-testid="stSidebar"] > div:first-child {
 /* Help text */
 .stTooltipIcon svg { color: #9B9BAB !important; }
 
+/* ── Dropdown popup (BaseWeb) ──────────────────────────── */
+[data-baseweb="popover"],
+[data-baseweb="menu"],
+ul[role="listbox"] {
+    background: #FFFFFF !important;
+    border: 1px solid #E8E2E4 !important;
+    border-radius: 8px !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1) !important;
+}
+
+[data-baseweb="menu"] li,
+ul[role="listbox"] li {
+    color: #2D2D2D !important;
+    background: #FFFFFF !important;
+    font-size: 13px !important;
+}
+
+[data-baseweb="menu"] li:hover,
+ul[role="listbox"] li:hover,
+li[aria-selected="true"] {
+    background: rgba(123,31,58,0.06) !important;
+    color: #7B1F3A !important;
+}
+
+[data-baseweb="menu"] li[aria-selected="true"],
+ul[role="listbox"] li[aria-selected="true"] {
+    background: rgba(123,31,58,0.1) !important;
+    color: #7B1F3A !important;
+    font-weight: 600 !important;
+}
+
 /* ── File uploader ──────────────────────────────────────── */
 [data-testid="stFileUploader"] section {
     background: #F8F6F7 !important;
@@ -224,14 +341,16 @@ section[data-testid="stSidebar"] > div:first-child {
     border-color: #7B1F3A !important;
 }
 
-[data-testid="stFileUploader"] p,
-[data-testid="stFileUploader"] span {
+[data-testid="stFileUploader"] [data-testid="stMarkdownContainer"] p,
+[data-testid="stFileUploader"] [data-testid="stMarkdownContainer"] span {
     color: #5A5A6B !important;
 }
 
 [data-testid="stFileUploader"] svg { color: #7B1F3A !important; }
 
-[data-testid="stFileUploader"] button {
+/* File uploader browse button - explicit to not get overridden */
+[data-testid="stFileUploader"] button,
+[data-testid="stFileUploader"] button span {
     background: #7B1F3A !important;
     color: #FFFFFF !important;
     border: none !important;
@@ -240,8 +359,22 @@ section[data-testid="stSidebar"] > div:first-child {
     font-size: 12px !important;
 }
 
-[data-testid="stFileUploader"] button:hover {
+[data-testid="stFileUploader"] button:hover,
+[data-testid="stFileUploader"] button:hover span {
     background: #9B3A56 !important;
+    color: #FFFFFF !important;
+}
+
+/* File uploader delete/X button */
+[data-testid="stFileUploader"] [data-testid="baseButton-secondary"],
+[data-testid="stFileUploader"] [data-testid="baseButton-secondary"] span {
+    background: transparent !important;
+    color: #5A5A6B !important;
+    border: none !important;
+    padding: 2px !important;
+    min-width: auto !important;
+    width: 24px !important;
+    height: 24px !important;
 }
 
 /* ── Image ──────────────────────────────────────────────── */
@@ -259,8 +392,22 @@ section[data-testid="stSidebar"] > div:first-child {
     padding: 14px 16px !important;
 }
 
-[data-testid="stMetricLabel"] p { color: #5A5A6B !important; font-size: 11px !important; font-weight: 600 !important; text-transform: uppercase !important; letter-spacing: 0.5px !important; }
-[data-testid="stMetricValue"] div { color: #7B1F3A !important; font-weight: 800 !important; }
+[data-testid="stMetricLabel"] p,
+[data-testid="stMetricLabel"] span {
+    color: #5A5A6B !important;
+    font-size: 11px !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.5px !important;
+}
+
+[data-testid="stMetricValue"],
+[data-testid="stMetricValue"] div,
+[data-testid="stMetricValue"] span {
+    color: #7B1F3A !important;
+    font-weight: 800 !important;
+}
+
 [data-testid="stMetricDelta"] div { font-weight: 600 !important; }
 
 /* ── Expander ───────────────────────────────────────────── */
@@ -272,11 +419,24 @@ section[data-testid="stSidebar"] > div:first-child {
 }
 
 [data-testid="stExpander"] summary {
-    padding: 10px 16px !important;
+    padding: 12px 16px !important;
+    background: #F8F6F7 !important;
+    border-bottom: 1px solid #E8E2E4;
 }
 
-[data-testid="stExpander"] summary span { color: #2D2D2D !important; font-weight: 600 !important; font-size: 13px !important; }
-[data-testid="stExpander"] svg { color: #7B1F3A !important; }
+[data-testid="stExpander"] summary span {
+    color: #2D2D2D !important;
+    font-weight: 600 !important;
+    font-size: 13px !important;
+}
+
+[data-testid="stExpander"] summary svg {
+    color: #7B1F3A !important;
+}
+
+[data-testid="stExpander"] [data-testid="stExpanderDetails"] {
+    padding: 12px 16px !important;
+}
 
 [data-testid="stExpander"] summary:focus-visible {
     outline: 2px solid #7B1F3A !important;
@@ -284,7 +444,40 @@ section[data-testid="stSidebar"] > div:first-child {
 }
 
 /* ── Alerts ─────────────────────────────────────────────── */
-.stAlert { border-radius: 8px !important; }
+.stAlert {
+    border-radius: 8px !important;
+    background: #F8F6F7 !important;
+}
+
+/* Success alert */
+[data-testid="stAlert"][data-baseweb*="positive"],
+.stAlert .st-emotion-cache-positive {
+    background: rgba(22,163,74,0.06) !important;
+    border: 1px solid rgba(22,163,74,0.2) !important;
+}
+
+/* Error alert */
+[data-testid="stAlert"][data-baseweb*="negative"] {
+    background: rgba(220,38,38,0.06) !important;
+    border: 1px solid rgba(220,38,38,0.2) !important;
+}
+
+/* Warning alert */
+[data-testid="stAlert"][data-baseweb*="warning"] {
+    background: rgba(217,119,6,0.06) !important;
+    border: 1px solid rgba(217,119,6,0.2) !important;
+}
+
+/* Info alert */
+[data-testid="stAlert"][data-baseweb*="info"] {
+    background: rgba(37,99,235,0.06) !important;
+    border: 1px solid rgba(37,99,235,0.2) !important;
+}
+
+/* Alert text */
+.stAlert p, .stAlert span, .stAlert div {
+    color: #2D2D2D !important;
+}
 
 /* ── Spinner ────────────────────────────────────────────── */
 .stSpinner > div > div { border-top-color: #7B1F3A !important; }
@@ -295,6 +488,15 @@ section[data-testid="stSidebar"] > div:first-child {
     background: #F8F6F7 !important;
     border: 1px solid #E8E2E4 !important;
     border-radius: 8px !important;
+    padding: 12px !important;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+/* JSON tree text colors */
+[data-testid="stJson"] * {
+    font-family: 'DM Sans', monospace !important;
+    font-size: 12px !important;
 }
 
 /* ── Dividers ───────────────────────────────────────────── */
