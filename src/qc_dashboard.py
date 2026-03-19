@@ -80,8 +80,9 @@ st.markdown("""<style>
 [data-testid="stExpander"] { border: 1px solid #E8E2E4 !important; border-radius: 8px !important; overflow: hidden; background: #FFFFFF !important; }
 [data-testid="stExpander"] details { border: none !important; }
 [data-testid="stExpander"] summary { background: #F8F6F7 !important; padding: 12px 16px !important; color: #2D2D2D !important; }
-[data-testid="stExpander"] summary p, [data-testid="stExpander"] summary span { color: #2D2D2D !important; }
+[data-testid="stExpander"] summary p { color: #2D2D2D !important; }
 [data-testid="stExpander"] svg { color: #7B1F3A !important; }
+.material-symbols-rounded, [data-testid="stIconMaterial"], span[class*="material"] { font-size: 0 !important; line-height: 0 !important; overflow: hidden !important; width: 0 !important; height: 0 !important; display: none !important; }
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-thumb { background: #D8D2D4; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #7B1F3A; }
