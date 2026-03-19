@@ -32,3 +32,6 @@ history/
 
 # Logs
 *.log
+
+# Dashboard UI reference
+dashboard ui for srs/

@@ -1,6 +1,6 @@
 """
 Streamlit Dashboard for OCR Text Detection.
-Premium minimalist design with dark theme using Lexend font.
+Professional light theme with DM Sans font matching BAC design system.
 Supports V1 (standard) and V2 (hallmark-specific) OCR.
 """
 
@@ -13,141 +13,190 @@ from history import add_to_history, get_history, clear_history
 
 # Page configuration
 st.set_page_config(
-    page_title="OCR Studio",
+    page_title="BAC OCR Studio",
     page_icon="",
     layout="wide",
 )
 
-# Custom CSS - Premium dark theme with gold accent using Lexend font
+# Custom CSS - Professional light theme with maroon accent using DM Sans font
 st.markdown("""
 <style>
-    /* Import Lexend font from Google Fonts */
-    @import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&display=swap');
 
-    /* Color palette:
-       Black: #000000
-       Navy: #14213d
-       Gold/Orange: #fca311
-       Light Gray: #e5e5e5
-       White: #ffffff
+    /* Theme:
+       Maroon:       #7B1F3A
+       Maroon Light: #9B3A56
+       Gold:         #C8A44E
+       Page BG:      #F5F1F2
+       Card BG:      #FFFFFF
+       Alt BG:       #F8F6F7
+       Border:       #E8E2E4
+       Border Light: #F0ECED
+       Text:         #2D2D2D
+       Text Muted:   #6B6B7B
+       Text Dim:     #9B9BAB
+       Success:      #16A34A
+       Danger:       #DC2626
+       Warning:      #D97706
+       Info:         #2563EB
     */
 
     * {
-        font-family: 'Lexend', sans-serif !important;
+        font-family: 'DM Sans', sans-serif !important;
     }
 
     .stApp {
-        background: linear-gradient(160deg, #000000 0%, #14213d 100%);
+        background: #F5F1F2;
         min-height: 100vh;
     }
 
-    /* Hide default Streamlit elements */
     #MainMenu, footer, header {visibility: hidden;}
 
-    /* Main container */
     .block-container {
-        padding: 3rem 2rem;
+        padding: 0 2rem 2rem 2rem;
         max-width: 1400px;
     }
 
-    /* Premium Header */
-    .main-header {
-        color: #ffffff;
-        font-size: 2.8rem;
-        font-weight: 700;
-        text-align: center;
-        margin-bottom: 0.5rem;
-        letter-spacing: -1px;
+    /* Top Bar */
+    .top-bar {
+        background: #7B1F3A;
+        margin: -1rem -2rem 0 -2rem;
+        padding: 0 24px;
+        height: 46px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        color: #FFFFFF;
+        margin-bottom: 0;
     }
 
-    .sub-header {
-        color: #fca311;
-        font-size: 1rem;
-        text-align: center;
-        margin-bottom: 3rem;
-        font-weight: 300;
-        letter-spacing: 3px;
+    .top-bar-brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .top-bar-icon {
+        width: 28px;
+        height: 28px;
+        background: rgba(255,255,255,0.15);
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    .top-bar-title {
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+    }
+
+    .top-bar-sub {
+        font-size: 10px;
+        font-weight: 500;
+        opacity: 0.7;
+        letter-spacing: 0.8px;
         text-transform: uppercase;
     }
 
-    /* Premium Card Style */
-    .premium-card {
-        background: linear-gradient(145deg, #1a2744 0%, #14213d 100%);
-        border-radius: 24px;
-        padding: 2rem;
-        box-shadow:
-            0 4px 6px rgba(0, 0, 0, 0.2),
-            0 20px 40px rgba(0, 0, 0, 0.4);
-        border: 1px solid rgba(252, 163, 17, 0.2);
+    /* Page Header */
+    .page-header {
+        background: #FFFFFF;
+        margin: 0 -2rem;
+        padding: 14px 24px;
+        border-bottom: 1px solid #E8E2E4;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 20px;
     }
 
-    /* Upload area - Clean minimal style */
+    .page-title {
+        font-size: 17px;
+        font-weight: 800;
+        color: #2D2D2D;
+        letter-spacing: -0.3px;
+        margin: 0;
+    }
+
+    .page-subtitle {
+        font-size: 11px;
+        color: #9B9BAB;
+        margin-top: 2px;
+    }
+
+    /* Cards */
+    .premium-card {
+        background: #FFFFFF;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 2px 20px rgba(0, 0, 0, 0.06);
+        border: 1px solid #E8E2E4;
+    }
+
+    /* File Uploader */
     [data-testid="stFileUploader"] {
         background: transparent !important;
         border: none !important;
         padding: 0 !important;
     }
 
-    /* Dropzone styling */
     [data-testid="stFileUploader"] section {
-        background: rgba(20, 33, 61, 0.6) !important;
-        border: 2px dashed rgba(252, 163, 17, 0.5) !important;
-        border-radius: 16px !important;
-        padding: 2.5rem 2rem !important;
-        transition: all 0.3s ease !important;
+        background: #F8F6F7 !important;
+        border: 2px dashed #E8E2E4 !important;
+        border-radius: 10px !important;
+        padding: 2rem !important;
+        transition: all 0.2s ease !important;
     }
 
     [data-testid="stFileUploader"] section:hover {
-        border-color: #fca311 !important;
-        background: rgba(20, 33, 61, 0.8) !important;
+        border-color: #7B1F3A !important;
+        background: rgba(123, 31, 58, 0.04) !important;
     }
 
-    /* Hide the uploaded file info row - we show image separately */
     [data-testid="stFileUploader"] > div > div:last-child {
         display: none !important;
     }
 
-    /* Text styling */
     [data-testid="stFileUploader"] p,
     [data-testid="stFileUploader"] span,
     [data-testid="stFileUploader"] small {
-        color: #e5e5e5 !important;
-        font-family: 'Lexend', sans-serif !important;
+        color: #6B6B7B !important;
+        font-family: 'DM Sans', sans-serif !important;
     }
 
-    /* Hide the file size limit text */
     [data-testid="stFileUploader"] small {
         display: none !important;
     }
 
-    /* Icon styling */
     [data-testid="stFileUploader"] svg {
-        color: #e5e5e5 !important;
-        width: 40px !important;
-        height: 40px !important;
+        color: #7B1F3A !important;
+        width: 36px !important;
+        height: 36px !important;
     }
 
-    /* Browse files button */
     [data-testid="stFileUploader"] button {
-        background: linear-gradient(135deg, #fca311 0%, #e09000 100%) !important;
-        color: #000000 !important;
+        background: #7B1F3A !important;
+        color: #FFFFFF !important;
         border: none !important;
-        border-radius: 10px !important;
-        padding: 0.6rem 1.5rem !important;
+        border-radius: 6px !important;
+        padding: 0.5rem 1.25rem !important;
         font-weight: 600 !important;
-        font-family: 'Lexend', sans-serif !important;
-        transition: all 0.3s ease !important;
+        font-family: 'DM Sans', sans-serif !important;
+        font-size: 12px !important;
+        transition: all 0.2s ease !important;
     }
 
     [data-testid="stFileUploader"] button:hover {
-        background: linear-gradient(135deg, #ffb733 0%, #fca311 100%) !important;
-        transform: translateY(-2px) !important;
-        box-shadow: 0 4px 12px rgba(252, 163, 17, 0.4) !important;
+        background: #9B3A56 !important;
+        transform: none !important;
+        box-shadow: none !important;
     }
 
-    /* Delete/X button for uploaded file */
     [data-testid="stFileUploader"] button[kind="icon"],
-    [data-testid="stFileUploader"] button:has(svg[data-testid="stBaseButton-headerNoPadding"]),
     [data-testid="stFileUploader"] [data-testid="baseButton-secondary"] {
         background: transparent !important;
         padding: 0.3rem !important;
@@ -162,52 +211,45 @@ st.markdown("""
     [data-testid="stFileUploader"] [data-testid="baseButton-secondary"] svg {
         width: 14px !important;
         height: 14px !important;
-        color: #14213d !important;
+        color: #6B6B7B !important;
     }
 
     [data-testid="stFileUploader"] button[kind="icon"]:hover,
     [data-testid="stFileUploader"] [data-testid="baseButton-secondary"]:hover {
-        background: rgba(20, 33, 61, 0.3) !important;
+        background: #F0ECED !important;
         transform: none !important;
     }
 
     /* Image container */
     [data-testid="stImage"] {
-        border-radius: 16px;
+        border-radius: 8px;
         overflow: hidden;
-        box-shadow:
-            0 4px 6px rgba(0, 0, 0, 0.15),
-            0 12px 28px rgba(0, 0, 0, 0.25);
+        border: 1px solid #E8E2E4;
     }
 
-    /* Premium Button */
+    /* Buttons */
     .stButton > button {
-        background: linear-gradient(135deg, #fca311 0%, #e09000 100%);
-        color: #000000;
+        background: #7B1F3A;
+        color: #FFFFFF;
         border: none;
-        border-radius: 14px;
-        padding: 1rem 2.5rem;
+        border-radius: 6px;
+        padding: 10px 20px;
         font-weight: 600;
-        font-size: 0.95rem;
-        letter-spacing: 0.5px;
+        font-size: 12px;
+        letter-spacing: 0.3px;
         width: 100%;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        box-shadow:
-            0 4px 14px rgba(252, 163, 17, 0.4),
-            inset 0 1px 0 rgba(255, 255, 255, 0.3);
-        font-family: 'Lexend', sans-serif !important;
+        transition: all 0.2s ease;
+        font-family: 'DM Sans', sans-serif !important;
     }
 
     .stButton > button:hover {
-        transform: translateY(-3px);
-        box-shadow:
-            0 8px 24px rgba(252, 163, 17, 0.5),
-            inset 0 1px 0 rgba(255, 255, 255, 0.4);
-        background: linear-gradient(135deg, #ffb733 0%, #fca311 100%);
+        background: #9B3A56;
+        transform: none;
+        box-shadow: none;
     }
 
     .stButton > button:active {
-        transform: translateY(-1px);
+        transform: none;
     }
 
     /* Progress steps */
@@ -216,151 +258,148 @@ st.markdown("""
         justify-content: center;
         align-items: center;
         gap: 1rem;
-        margin: 2rem 0;
-        padding: 1rem;
-        background: rgba(255, 255, 255, 0.03);
-        border-radius: 16px;
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.05);
+        margin: 16px 0;
+        padding: 12px 16px;
+        background: #FFFFFF;
+        border-radius: 10px;
+        border: 1px solid #E8E2E4;
     }
 
     .step {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
-        color: rgba(255, 255, 255, 0.3);
-        font-size: 0.85rem;
-        font-weight: 500;
-        padding: 0.5rem 1rem;
-        border-radius: 10px;
-        transition: all 0.3s ease;
+        gap: 8px;
+        color: #9B9BAB;
+        font-size: 12px;
+        font-weight: 600;
+        padding: 6px 14px;
+        border-radius: 6px;
+        transition: all 0.2s ease;
     }
 
     .step.active {
-        color: #ffffff;
-        background: rgba(252, 163, 17, 0.15);
+        color: #7B1F3A;
+        background: rgba(123, 31, 58, 0.08);
     }
 
     .step.completed {
-        color: #fca311;
+        color: #16A34A;
     }
 
     .step-line {
-        width: 40px;
+        width: 32px;
         height: 2px;
-        background: rgba(255, 255, 255, 0.1);
+        background: #E8E2E4;
         border-radius: 1px;
     }
 
     .step.completed + .step-line,
     .step-line.completed {
-        background: #fca311;
+        background: #16A34A;
     }
 
     .step-number {
-        width: 28px;
-        height: 28px;
+        width: 24px;
+        height: 24px;
         border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 0.75rem;
-        font-weight: 600;
-        background: rgba(255, 255, 255, 0.05);
-        border: 2px solid rgba(255, 255, 255, 0.15);
+        font-size: 11px;
+        font-weight: 700;
+        background: #F8F6F7;
+        border: 2px solid #E8E2E4;
+        color: #9B9BAB;
     }
 
     .step.active .step-number {
-        background: #fca311;
-        border-color: #fca311;
-        color: #000000;
-        box-shadow: 0 0 20px rgba(252, 163, 17, 0.4);
+        background: #7B1F3A;
+        border-color: #7B1F3A;
+        color: #FFFFFF;
     }
 
     .step.completed .step-number {
-        background: #14213d;
-        border-color: #fca311;
-        color: #fca311;
+        background: #FFFFFF;
+        border-color: #16A34A;
+        color: #16A34A;
     }
 
     /* Output section */
     .output-container {
-        background: linear-gradient(145deg, #1a2744 0%, #14213d 100%);
-        border-radius: 24px;
-        padding: 2rem;
-        box-shadow:
-            0 4px 6px rgba(0, 0, 0, 0.2),
-            0 20px 40px rgba(0, 0, 0, 0.4);
-        border: 1px solid rgba(252, 163, 17, 0.2);
+        background: #FFFFFF;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 2px 20px rgba(0, 0, 0, 0.06);
+        border: 1px solid #E8E2E4;
     }
 
     .output-label {
-        color: #fca311;
-        font-weight: 600;
-        font-size: 0.8rem;
+        color: #7B1F3A;
+        font-weight: 700;
+        font-size: 10px;
         text-transform: uppercase;
-        letter-spacing: 1.5px;
-        margin-bottom: 1rem;
+        letter-spacing: 0.8px;
+        margin-bottom: 10px;
     }
 
-    /* Text area styling */
+    /* Text area */
     .stTextArea textarea {
-        border: 1px solid rgba(252, 163, 17, 0.3);
-        border-radius: 14px;
-        font-family: 'Lexend', sans-serif !important;
-        font-size: 0.9rem;
-        color: #e5e5e5;
-        background: #0d1521;
-        padding: 1rem;
+        border: 1px solid #E8E2E4;
+        border-radius: 8px;
+        font-family: 'DM Sans', sans-serif !important;
+        font-size: 12px;
+        color: #2D2D2D;
+        background: #F8F6F7;
+        padding: 12px 14px;
+        line-height: 1.6;
     }
 
     .stTextArea textarea:focus {
-        border-color: #fca311;
-        box-shadow: 0 0 0 4px rgba(252, 163, 17, 0.15);
+        border-color: #7B1F3A;
+        box-shadow: 0 0 0 3px rgba(123, 31, 58, 0.1);
     }
 
     /* Info message */
     .stAlert {
-        border-radius: 14px;
+        border-radius: 8px;
         border: none;
-        background: #1a2744;
+        background: #F8F6F7;
     }
 
     /* Processing status */
     .processing-status {
         text-align: center;
-        padding: 2rem;
-        color: #ffffff;
-        background: rgba(255, 255, 255, 0.03);
-        border-radius: 16px;
-        backdrop-filter: blur(10px);
-        border: 1px solid rgba(255, 255, 255, 0.05);
+        padding: 20px;
+        color: #2D2D2D;
+        background: #FFFFFF;
+        border-radius: 10px;
+        border: 1px solid #E8E2E4;
     }
 
     .processing-step {
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 0.75rem;
-        margin: 0.75rem 0;
-        font-size: 0.9rem;
-        font-weight: 400;
+        gap: 8px;
+        margin: 8px 0;
+        font-size: 12px;
+        font-weight: 500;
     }
 
-    .processing-step.done { color: #fca311; }
-    .processing-step.active { color: #ffffff; }
-    .processing-step.pending { color: rgba(255, 255, 255, 0.2); }
+    .processing-step.done { color: #16A34A; }
+    .processing-step.active { color: #7B1F3A; font-weight: 600; }
+    .processing-step.pending { color: #9B9BAB; }
 
-    /* Upload prompt text */
+    /* Upload prompt */
     .upload-prompt {
         text-align: center;
-        padding: 3rem 1rem;
-        color: rgba(255, 255, 255, 0.5);
+        padding: 2.5rem 1rem;
+        color: #9B9BAB;
     }
 
     .upload-prompt p {
-        margin: 0.5rem 0;
-        font-weight: 300;
+        margin: 4px 0;
+        font-weight: 500;
     }
 
     /* Confidence display */
@@ -368,248 +407,229 @@ st.markdown("""
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 0.875rem 1rem;
-        margin: 0.5rem 0;
-        background: #0d1521;
-        border-radius: 12px;
-        font-size: 0.9rem;
-        border: 1px solid rgba(252, 163, 17, 0.2);
+        padding: 10px 14px;
+        margin: 4px 0;
+        background: #F8F6F7;
+        border-radius: 8px;
+        font-size: 13px;
+        border: 1px solid #F0ECED;
         transition: all 0.2s ease;
     }
 
     .confidence-item:hover {
-        box-shadow: 0 4px 12px rgba(252, 163, 17, 0.15);
-        transform: translateX(4px);
-        border-color: #fca311;
+        border-color: #E8E2E4;
     }
 
     .confidence-text {
-        color: #e5e5e5;
+        color: #2D2D2D;
         flex: 1;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        margin-right: 1rem;
-        font-weight: 400;
+        margin-right: 10px;
+        font-weight: 500;
     }
 
     .confidence-badges {
         display: flex;
         align-items: center;
-        gap: 0.5rem;
+        gap: 6px;
     }
 
     .confidence-score {
-        font-weight: 600;
-        padding: 0.375rem 0.75rem;
-        border-radius: 8px;
-        font-size: 0.75rem;
-        letter-spacing: 0.5px;
+        font-weight: 700;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 10px;
+        letter-spacing: 0.4px;
     }
 
     .approval-badge {
-        font-weight: 600;
-        padding: 0.375rem 0.75rem;
-        border-radius: 8px;
-        font-size: 0.7rem;
-        letter-spacing: 0.5px;
+        font-weight: 700;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 10px;
+        letter-spacing: 0.4px;
         text-transform: uppercase;
     }
 
     .approved {
-        background: linear-gradient(135deg, #1a4d2e 0%, #2d6a4f 100%);
-        color: #95d5b2;
+        background: rgba(22, 163, 74, 0.1);
+        color: #16A34A;
     }
 
     .not-approved {
-        background: linear-gradient(135deg, #4d1a1a 0%, #6a2d2d 100%);
-        color: #f5a5a5;
+        background: rgba(220, 38, 38, 0.1);
+        color: #DC2626;
     }
 
     .confidence-high {
-        background: linear-gradient(135deg, #1a4d2e 0%, #2d6a4f 100%);
-        color: #95d5b2;
+        background: rgba(22, 163, 74, 0.1);
+        color: #16A34A;
     }
     .confidence-medium {
-        background: linear-gradient(135deg, #5c4d1a 0%, #7d6608 100%);
-        color: #fca311;
+        background: rgba(217, 119, 6, 0.1);
+        color: #D97706;
     }
     .confidence-low {
-        background: linear-gradient(135deg, #4d1a1a 0%, #6a2d2d 100%);
-        color: #f5a5a5;
+        background: rgba(220, 38, 38, 0.1);
+        color: #DC2626;
     }
 
     .avg-confidence {
         text-align: center;
-        padding: 1.5rem;
-        background: linear-gradient(135deg, #14213d 0%, #000000 100%);
-        border-radius: 16px;
-        margin: 1.5rem 0;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-        border: 1px solid rgba(252, 163, 17, 0.2);
+        padding: 18px 20px;
+        background: #FFFFFF;
+        border-radius: 10px;
+        margin: 14px 0;
+        border: 1px solid #E8E2E4;
     }
 
     .avg-score {
-        font-size: 3rem;
-        font-weight: 700;
-        color: #fca311;
-        letter-spacing: -2px;
+        font-size: 2.5rem;
+        font-weight: 800;
+        color: #7B1F3A;
+        letter-spacing: -0.5px;
     }
 
     .avg-label {
-        font-size: 0.75rem;
-        color: #e5e5e5;
+        font-size: 10px;
+        color: #9B9BAB;
         text-transform: uppercase;
-        letter-spacing: 2px;
-        font-weight: 500;
-        margin-top: 0.25rem;
+        letter-spacing: 1px;
+        font-weight: 700;
+        margin-top: 2px;
     }
 
     /* History sidebar */
     .history-title {
-        color: #ffffff;
-        font-size: 0.85rem;
-        font-weight: 600;
-        margin-bottom: 1.5rem;
-        padding-bottom: 0.75rem;
-        border-bottom: 1px solid rgba(252, 163, 17, 0.2);
+        color: #2D2D2D;
+        font-size: 10px;
+        font-weight: 700;
+        margin-bottom: 14px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #E8E2E4;
         text-transform: uppercase;
-        letter-spacing: 2px;
+        letter-spacing: 0.8px;
     }
 
     .history-item {
-        background: rgba(255, 255, 255, 0.03);
-        border-radius: 14px;
-        padding: 1rem;
-        margin-bottom: 1rem;
+        background: #F8F6F7;
+        border-radius: 8px;
+        padding: 10px 12px;
+        margin-bottom: 8px;
         cursor: pointer;
-        transition: all 0.3s ease;
-        border: 1px solid rgba(255, 255, 255, 0.03);
+        transition: all 0.2s ease;
+        border: 1px solid #F0ECED;
     }
 
     .history-item:hover {
-        background: rgba(255, 255, 255, 0.06);
-        border-color: rgba(252, 163, 17, 0.3);
-        transform: translateX(4px);
+        border-color: #E8E2E4;
     }
 
     .history-time {
-        font-size: 0.7rem;
-        color: #fca311;
-        margin-bottom: 0.375rem;
-        font-weight: 500;
-        letter-spacing: 0.5px;
+        font-size: 10px;
+        color: #7B1F3A;
+        margin-bottom: 4px;
+        font-weight: 600;
+        letter-spacing: 0.3px;
     }
 
     .history-preview {
-        font-size: 0.8rem;
-        color: rgba(255, 255, 255, 0.7);
+        font-size: 12px;
+        color: #6B6B7B;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-        font-weight: 300;
+        font-weight: 400;
     }
 
     .history-confidence {
-        font-size: 0.7rem;
-        color: #e5e5e5;
-        margin-top: 0.375rem;
+        font-size: 10px;
+        color: #2D2D2D;
+        margin-top: 4px;
         font-weight: 600;
     }
 
-    /* Sidebar styling */
+    /* Sidebar */
     [data-testid="stSidebar"] {
-        background: linear-gradient(180deg, #000000 0%, #14213d 100%);
-        border-right: 1px solid rgba(252, 163, 17, 0.1);
+        background: #FFFFFF;
+        border-right: 1px solid #E8E2E4;
     }
 
     [data-testid="stSidebar"] [data-testid="stImage"] {
-        border-radius: 10px;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        border-radius: 8px;
+        border: 1px solid #E8E2E4;
     }
 
     [data-testid="stSidebar"] .stButton > button {
-        background: rgba(252, 163, 17, 0.1);
-        color: #fca311;
-        border: 1px solid rgba(252, 163, 17, 0.3);
-        font-size: 0.8rem;
-        padding: 0.625rem 1rem;
+        background: #F8F6F7;
+        color: #7B1F3A;
+        border: 1px solid #E8E2E4;
+        font-size: 11px;
+        padding: 8px 14px;
     }
 
     [data-testid="stSidebar"] .stButton > button:hover {
-        background: rgba(252, 163, 17, 0.2);
-        color: #ffffff;
+        background: rgba(123, 31, 58, 0.06);
+        color: #7B1F3A;
     }
 
-    /* Divider styling */
     [data-testid="stSidebar"] hr {
-        border-color: rgba(252, 163, 17, 0.1);
-        margin: 0.75rem 0;
+        border-color: #E8E2E4;
+        margin: 8px 0;
     }
 
-    /* Badge/Tag styling */
-    .premium-badge {
-        display: inline-block;
-        padding: 0.25rem 0.75rem;
-        background: linear-gradient(135deg, #fca311 0%, #e09000 100%);
-        color: #000000;
-        border-radius: 20px;
-        font-size: 0.65rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-    }
-
-    /* Scrollbar styling */
+    /* Scrollbar */
     ::-webkit-scrollbar {
         width: 6px;
         height: 6px;
     }
 
     ::-webkit-scrollbar-track {
-        background: rgba(255, 255, 255, 0.03);
+        background: #F5F1F2;
         border-radius: 3px;
     }
 
     ::-webkit-scrollbar-thumb {
-        background: rgba(252, 163, 17, 0.3);
+        background: #E8E2E4;
         border-radius: 3px;
     }
 
     ::-webkit-scrollbar-thumb:hover {
-        background: rgba(252, 163, 17, 0.5);
+        background: #7B1F3A;
     }
 
-    /* Tab styling */
+    /* Tabs */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
-        background: rgba(255, 255, 255, 0.03);
-        border-radius: 16px;
-        padding: 8px;
-        border: 1px solid rgba(255, 255, 255, 0.05);
+        gap: 4px;
+        background: #FFFFFF;
+        border-radius: 10px;
+        padding: 4px;
+        border: 1px solid #E8E2E4;
     }
 
     .stTabs [data-baseweb="tab"] {
-        height: 45px;
+        height: 40px;
         background: transparent;
-        border-radius: 12px;
-        color: rgba(255, 255, 255, 0.5);
-        font-weight: 500;
-        font-size: 0.9rem;
-        padding: 0 24px;
+        border-radius: 6px;
+        color: #6B6B7B;
+        font-weight: 600;
+        font-size: 12px;
+        padding: 0 20px;
         border: none;
-        font-family: 'Lexend', sans-serif !important;
+        font-family: 'DM Sans', sans-serif !important;
     }
 
     .stTabs [data-baseweb="tab"]:hover {
-        background: rgba(252, 163, 17, 0.1);
-        color: #ffffff;
+        background: rgba(123, 31, 58, 0.06);
+        color: #7B1F3A;
     }
 
     .stTabs [aria-selected="true"] {
-        background: linear-gradient(135deg, #fca311 0%, #e09000 100%) !important;
-        color: #000000 !important;
-        font-weight: 600;
+        background: #7B1F3A !important;
+        color: #FFFFFF !important;
+        font-weight: 700;
     }
 
     .stTabs [data-baseweb="tab-highlight"] {
@@ -622,28 +642,30 @@ st.markdown("""
 
     /* Hallmark info card */
     .hallmark-card {
-        background: linear-gradient(145deg, #1a4d2e 0%, #14213d 100%);
-        border-radius: 16px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-        border: 1px solid rgba(149, 213, 178, 0.3);
+        background: #FFFFFF;
+        border-radius: 10px;
+        padding: 16px 18px;
+        margin: 10px 0;
+        border: 1px solid #E8E2E4;
+        border-left: 3px solid #7B1F3A;
     }
 
     .hallmark-title {
-        color: #95d5b2;
-        font-size: 0.75rem;
-        font-weight: 600;
+        color: #7B1F3A;
+        font-size: 10px;
+        font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 1.5px;
-        margin-bottom: 1rem;
+        letter-spacing: 0.8px;
+        margin-bottom: 10px;
     }
 
     .hallmark-item {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 0.5rem 0;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        padding: 8px 0;
+        border-bottom: 1px solid #F0ECED;
+        font-size: 12px;
     }
 
     .hallmark-item:last-child {
@@ -651,92 +673,93 @@ st.markdown("""
     }
 
     .hallmark-label {
-        color: rgba(255, 255, 255, 0.6);
-        font-size: 0.85rem;
+        color: #6B6B7B;
+        font-weight: 500;
     }
 
     .hallmark-value {
-        color: #fca311;
-        font-weight: 600;
-        font-size: 0.9rem;
+        color: #7B1F3A;
+        font-weight: 700;
     }
 
     .bis-badge {
         display: inline-block;
-        padding: 0.375rem 0.875rem;
-        border-radius: 20px;
-        font-size: 0.75rem;
-        font-weight: 600;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 10px;
+        font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.4px;
     }
 
     .bis-certified {
-        background: linear-gradient(135deg, #1a4d2e 0%, #2d6a4f 100%);
-        color: #95d5b2;
+        background: rgba(22, 163, 74, 0.1);
+        color: #16A34A;
     }
 
     .bis-not-certified {
-        background: linear-gradient(135deg, #4d3a1a 0%, #6a4d08 100%);
-        color: #fca311;
+        background: rgba(217, 119, 6, 0.1);
+        color: #D97706;
     }
 
-    /* Type badge */
+    /* Type badges */
     .type-badge {
         display: inline-block;
-        padding: 0.25rem 0.5rem;
-        border-radius: 6px;
-        font-size: 0.65rem;
-        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 10px;
+        font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-left: 0.5rem;
+        letter-spacing: 0.4px;
+        margin-left: 6px;
     }
 
     .type-purity {
-        background: rgba(252, 163, 17, 0.2);
-        color: #fca311;
+        background: rgba(123, 31, 58, 0.1);
+        color: #7B1F3A;
     }
 
     .type-huid {
-        background: rgba(149, 213, 178, 0.2);
-        color: #95d5b2;
+        background: rgba(22, 163, 74, 0.1);
+        color: #16A34A;
     }
 
     .type-check {
-        background: rgba(100, 149, 237, 0.2);
-        color: #6495ed;
+        background: rgba(37, 99, 235, 0.1);
+        color: #2563EB;
     }
 
     .type-unknown {
-        background: rgba(255, 255, 255, 0.1);
-        color: rgba(255, 255, 255, 0.5);
+        background: #F8F6F7;
+        color: #9B9BAB;
     }
 
     /* Check info card */
     .check-card {
-        background: linear-gradient(145deg, #1a3d5c 0%, #14213d 100%);
-        border-radius: 16px;
-        padding: 1.5rem;
-        margin: 1rem 0;
-        border: 1px solid rgba(100, 149, 237, 0.3);
+        background: #FFFFFF;
+        border-radius: 10px;
+        padding: 16px 18px;
+        margin: 10px 0;
+        border: 1px solid #E8E2E4;
+        border-left: 3px solid #2563EB;
     }
 
     .check-title {
-        color: #6495ed;
-        font-size: 0.75rem;
-        font-weight: 600;
+        color: #2563EB;
+        font-size: 10px;
+        font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 1.5px;
-        margin-bottom: 1rem;
+        letter-spacing: 0.8px;
+        margin-bottom: 10px;
     }
 
     .check-item {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 0.5rem 0;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        padding: 8px 0;
+        border-bottom: 1px solid #F0ECED;
+        font-size: 12px;
     }
 
     .check-item:last-child {
@@ -744,45 +767,45 @@ st.markdown("""
     }
 
     .check-label {
-        color: rgba(255, 255, 255, 0.6);
-        font-size: 0.85rem;
+        color: #6B6B7B;
+        font-weight: 500;
     }
 
     .check-value {
-        color: #6495ed;
-        font-weight: 600;
-        font-size: 0.9rem;
-        font-family: 'Courier New', monospace;
+        color: #2563EB;
+        font-weight: 700;
+        font-size: 12px;
+        font-family: 'DM Sans', monospace;
     }
 
     .check-badge {
         display: inline-block;
-        padding: 0.375rem 0.875rem;
-        border-radius: 20px;
-        font-size: 0.75rem;
-        font-weight: 600;
+        padding: 3px 10px;
+        border-radius: 12px;
+        font-size: 10px;
+        font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.4px;
     }
 
     .check-valid {
-        background: linear-gradient(135deg, #1a4d2e 0%, #2d6a4f 100%);
-        color: #95d5b2;
+        background: rgba(22, 163, 74, 0.1);
+        color: #16A34A;
     }
 
     .check-invalid {
-        background: linear-gradient(135deg, #4d3a1a 0%, #6a4d08 100%);
-        color: #fca311;
+        background: rgba(217, 119, 6, 0.1);
+        color: #D97706;
     }
 
     .validated-badge {
-        background: linear-gradient(135deg, #1a4d2e 0%, #2d6a4f 100%);
-        color: #95d5b2;
-        padding: 0.25rem 0.5rem;
-        border-radius: 6px;
-        font-size: 0.65rem;
-        font-weight: 600;
-        margin-left: 0.5rem;
+        background: rgba(22, 163, 74, 0.1);
+        color: #16A34A;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 10px;
+        font-weight: 700;
+        margin-left: 6px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -801,7 +824,7 @@ def load_ocr_engine_v2():
 
 
 def render_steps(current_step):
-    """Render premium progress steps."""
+    """Render progress steps."""
     steps = ["Upload", "Process", "Result"]
     html = '<div class="step-container">'
     for i, step in enumerate(steps):
@@ -837,10 +860,8 @@ def render_confidence_results(results: list):
         st.info("No text detected in this image.")
         return
 
-    # Calculate average confidence
     avg_conf = sum(r.confidence for r in results) / len(results)
 
-    # Display average confidence
     st.markdown(f"""
     <div class="avg-confidence">
         <div class="avg-score">{avg_conf * 100:.1f}%</div>
@@ -848,7 +869,6 @@ def render_confidence_results(results: list):
     </div>
     """, unsafe_allow_html=True)
 
-    # Display individual results
     st.markdown('<p class="output-label">Detected Text</p>', unsafe_allow_html=True)
 
     for r in results:
@@ -968,7 +988,6 @@ def render_hallmark_info(hallmark_info):
         </div>
         """
 
-    # Only show hallmark card if there's hallmark data
     if items_html:
         st.markdown(f"""
         <div class="hallmark-card">
@@ -980,7 +999,6 @@ def render_hallmark_info(hallmark_info):
         </div>
         """, unsafe_allow_html=True)
     elif not hallmark_info.check_info:
-        # Only show "no data" if there's also no check info
         st.markdown(f"""
         <div class="hallmark-card">
             <div class="hallmark-title">
@@ -988,12 +1006,11 @@ def render_hallmark_info(hallmark_info):
                 <span class="bis-badge {bis_class}">{bis_text}</span>
             </div>
             <div class="hallmark-item">
-                <span class="hallmark-label" style="color: rgba(255,255,255,0.4);">No hallmark data detected</span>
+                <span class="hallmark-label" style="color: #9B9BAB;">No hallmark data detected</span>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
-    # Render check info if available
     if hallmark_info.check_info:
         render_check_info(hallmark_info.check_info)
 
@@ -1004,10 +1021,8 @@ def render_confidence_results_v2(results: list, hallmark_info):
         st.info("No text detected in this image.")
         return
 
-    # Calculate average confidence
     avg_conf = sum(r.confidence for r in results) / len(results)
 
-    # Display average confidence
     st.markdown(f"""
     <div class="avg-confidence">
         <div class="avg-score">{avg_conf * 100:.1f}%</div>
@@ -1015,10 +1030,8 @@ def render_confidence_results_v2(results: list, hallmark_info):
     </div>
     """, unsafe_allow_html=True)
 
-    # Display hallmark info card
     render_hallmark_info(hallmark_info)
 
-    # Display individual results
     st.markdown('<p class="output-label">Detected Text</p>', unsafe_allow_html=True)
 
     for r in results:
@@ -1027,7 +1040,6 @@ def render_confidence_results_v2(results: list, hallmark_info):
         approval_class = "approved" if is_approved else "not-approved"
         approval_text = "Approved" if is_approved else "Not Approved"
 
-        # Type badge
         type_class = "type-unknown"
         type_text = ""
         if r.hallmark_type == HallmarkType.PURITY_MARK:
@@ -1063,13 +1075,12 @@ def render_history_sidebar():
 
         if not history:
             st.markdown("""
-            <p style="color: rgba(255,255,255,0.3); font-size: 0.85rem; text-align: center; font-weight: 300;">
+            <p style="color: #9B9BAB; font-size: 12px; text-align: center; font-weight: 500;">
                 No history yet
             </p>
             """, unsafe_allow_html=True)
             return
 
-        # Clear history button
         if st.button("Clear All", key="clear_history"):
             clear_history()
             st.rerun()
@@ -1082,7 +1093,7 @@ def render_history_sidebar():
                         thumb = Image.open(entry["thumbnail_path"])
                         st.image(thumb, use_container_width=True)
                     except Exception:
-                        st.markdown("—")
+                        st.markdown("--")
 
                 with col2:
                     preview = entry["text"][:40] + "..." if len(entry["text"]) > 40 else entry["text"]
@@ -1097,7 +1108,6 @@ def render_history_sidebar():
 
 def render_v1_tab():
     """Render the V1 (Standard OCR) tab content."""
-    # Initialize V1 session state
     if "ocr_results_v1" not in st.session_state:
         st.session_state.ocr_results_v1 = None
     if "processed_v1" not in st.session_state:
@@ -1130,7 +1140,7 @@ def render_v1_tab():
             st.session_state.current_image_v1 = image.copy()
             st.image(image, use_container_width=True)
 
-            st.markdown("<div style='height: 1rem'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height: 0.5rem'></div>", unsafe_allow_html=True)
 
             if st.button("Extract Text", use_container_width=True, key="extract_v1"):
                 st.session_state.processing_v1 = True
@@ -1143,8 +1153,8 @@ def render_v1_tab():
 
             st.markdown("""
             <div class="upload-prompt">
-                <p style="font-size: 1.2rem; font-weight: 400;">Drop your image here</p>
-                <p style="font-size: 0.85rem;">PNG, JPG, JPEG, BMP, or WEBP</p>
+                <p style="font-size: 14px; font-weight: 600; color: #6B6B7B;">Drop your image here</p>
+                <p style="font-size: 11px; color: #9B9BAB;">PNG, JPG, JPEG, BMP, or WEBP</p>
             </div>
             """, unsafe_allow_html=True)
 
@@ -1190,29 +1200,28 @@ def render_v1_tab():
 
             if st.session_state.ocr_results_v1:
                 combined_text = "\n".join([r.text for r in st.session_state.ocr_results_v1])
-                st.markdown('<p class="output-label" style="margin-top: 1.5rem;">Full Text</p>', unsafe_allow_html=True)
+                st.markdown('<p class="output-label" style="margin-top: 14px;">Full Text</p>', unsafe_allow_html=True)
                 st.text_area("Full text", combined_text, height=150, label_visibility="collapsed", key="text_v1")
 
             st.markdown('</div>', unsafe_allow_html=True)
         else:
             st.markdown("""
             <div style="
-                background: rgba(255, 255, 255, 0.02);
-                border: 2px dashed rgba(252, 163, 17, 0.15);
-                border-radius: 24px;
-                padding: 4rem 2rem;
+                background: #FFFFFF;
+                border: 2px dashed #E8E2E4;
+                border-radius: 10px;
+                padding: 3rem 2rem;
                 text-align: center;
-                color: rgba(255, 255, 255, 0.25);
+                color: #9B9BAB;
             ">
-                <p style="font-size: 1rem; margin-bottom: 0.5rem;">Results will appear here</p>
-                <p style="font-size: 0.8rem;">Upload an image and click Extract</p>
+                <p style="font-size: 13px; margin-bottom: 4px; font-weight: 600;">Results will appear here</p>
+                <p style="font-size: 11px;">Upload an image and click Extract</p>
             </div>
             """, unsafe_allow_html=True)
 
 
 def render_v2_tab():
     """Render the V2 (Hallmark OCR) tab content."""
-    # Initialize V2 session state
     if "ocr_results_v2" not in st.session_state:
         st.session_state.ocr_results_v2 = None
     if "hallmark_info_v2" not in st.session_state:
@@ -1247,7 +1256,7 @@ def render_v2_tab():
             st.session_state.current_image_v2 = image.copy()
             st.image(image, use_container_width=True)
 
-            st.markdown("<div style='height: 1rem'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height: 0.5rem'></div>", unsafe_allow_html=True)
 
             if st.button("Extract Hallmark", use_container_width=True, key="extract_v2"):
                 st.session_state.processing_v2 = True
@@ -1261,8 +1270,8 @@ def render_v2_tab():
 
             st.markdown("""
             <div class="upload-prompt">
-                <p style="font-size: 1.2rem; font-weight: 400;">Drop your hallmark image here</p>
-                <p style="font-size: 0.85rem;">PNG, JPG, JPEG, BMP, or WEBP</p>
+                <p style="font-size: 14px; font-weight: 600; color: #6B6B7B;">Drop your hallmark image here</p>
+                <p style="font-size: 11px; color: #9B9BAB;">PNG, JPG, JPEG, BMP, or WEBP</p>
             </div>
             """, unsafe_allow_html=True)
 
@@ -1310,33 +1319,52 @@ def render_v2_tab():
 
             if st.session_state.ocr_results_v2:
                 combined_text = "\n".join([r.text for r in st.session_state.ocr_results_v2])
-                st.markdown('<p class="output-label" style="margin-top: 1.5rem;">Full Text</p>', unsafe_allow_html=True)
+                st.markdown('<p class="output-label" style="margin-top: 14px;">Full Text</p>', unsafe_allow_html=True)
                 st.text_area("Full text", combined_text, height=150, label_visibility="collapsed", key="text_v2")
 
             st.markdown('</div>', unsafe_allow_html=True)
         else:
             st.markdown("""
             <div style="
-                background: rgba(255, 255, 255, 0.02);
-                border: 2px dashed rgba(252, 163, 17, 0.15);
-                border-radius: 24px;
-                padding: 4rem 2rem;
+                background: #FFFFFF;
+                border: 2px dashed #E8E2E4;
+                border-radius: 10px;
+                padding: 3rem 2rem;
                 text-align: center;
-                color: rgba(255, 255, 255, 0.25);
+                color: #9B9BAB;
             ">
-                <p style="font-size: 1rem; margin-bottom: 0.5rem;">Results will appear here</p>
-                <p style="font-size: 0.8rem;">Upload a hallmark image and click Extract</p>
+                <p style="font-size: 13px; margin-bottom: 4px; font-weight: 600;">Results will appear here</p>
+                <p style="font-size: 11px;">Upload a hallmark image and click Extract</p>
             </div>
             """, unsafe_allow_html=True)
 
 
 def main():
-    # Render history sidebar
     render_history_sidebar()
 
-    # Header
-    st.markdown('<h1 class="main-header">OCR Studio</h1>', unsafe_allow_html=True)
-    st.markdown('<p class="sub-header">Premium Text Extraction</p>', unsafe_allow_html=True)
+    # Top bar
+    st.markdown("""
+    <div class="top-bar">
+        <div class="top-bar-brand">
+            <div class="top-bar-icon">B</div>
+            <div>
+                <div class="top-bar-title">BAC OCR Studio</div>
+                <div class="top-bar-sub">Optical Character Recognition</div>
+            </div>
+        </div>
+        <div style="font-size: 11px; font-weight: 500; opacity: 0.8; letter-spacing: 0.5px;">Text Extraction</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Page header
+    st.markdown("""
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">OCR Studio</h1>
+            <div class="page-subtitle">Upload images to extract and analyze text</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
     # Tabs for V1 and V2
     tab1, tab2 = st.tabs(["Standard OCR", "Hallmark OCR V2"])
