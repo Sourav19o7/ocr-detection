@@ -60,25 +60,28 @@ st.markdown("""<style>
 .stTabs [data-baseweb="tab-list"] { gap: 2px; background: #FFFFFF; border-radius: 10px; padding: 4px; border: 1px solid #E8E2E4; }
 .stTabs [data-baseweb="tab"] { height: 38px; border-radius: 7px; font-weight: 600; font-size: 12.5px; padding: 0 18px; border: none; white-space: nowrap; }
 .stTabs [data-baseweb="tab-highlight"], .stTabs [data-baseweb="tab-border"] { display: none !important; }
-.stTabs [aria-selected="true"]:hover, .stTabs [aria-selected="true"]:hover * { color: #FFFFFF !important; background: #7B1F3A !important; }
-.stButton > button p, .stButton > button span { color: #FFFFFF !important; }
-[data-testid="stSidebar"] .stButton > button { background: #F8F6F7 !important; border: 1px solid #E8E2E4 !important; }
-[data-testid="stSidebar"] .stButton > button p, [data-testid="stSidebar"] .stButton > button span { color: #7B1F3A !important; }
+.stTabs [aria-selected="true"] { background: #7B1F3A !important; color: #FFFFFF !important; }
+.stTabs [aria-selected="true"]:hover { background: #6B1A33 !important; color: #FFFFFF !important; }
+.stButton > button { background: #7B1F3A !important; color: #FFFFFF !important; border: none !important; border-radius: 7px; padding: 10px 24px; font-weight: 600; font-size: 13px; }
+.stButton > button:hover { background: #9B3A56 !important; color: #FFFFFF !important; }
+[data-testid="stSidebar"] .stButton > button { background: #F8F6F7 !important; color: #7B1F3A !important; border: 1px solid #E8E2E4 !important; }
+[data-testid="stSidebar"] .stButton > button:hover { background: #F0ECED !important; color: #7B1F3A !important; }
 .stSelectbox [data-baseweb="select"] > div, .stTextInput > div > div > input { background: #F8F6F7 !important; border: 1px solid #E8E2E4 !important; border-radius: 7px !important; }
 .stTextArea textarea { background: #F8F6F7 !important; border: 1px solid #E8E2E4 !important; border-radius: 7px !important; }
 [data-baseweb="popover"], [data-baseweb="menu"], ul[role="listbox"] { background: #FFFFFF !important; border: 1px solid #E8E2E4 !important; border-radius: 8px !important; box-shadow: 0 4px 20px rgba(0,0,0,0.08) !important; }
 [data-baseweb="menu"] li:hover, ul[role="listbox"] li:hover { background: rgba(123,31,58,0.05) !important; }
 [data-testid="stFileUploader"] section { background: #F8F6F7 !important; border: 2px dashed #E8E2E4 !important; border-radius: 10px !important; }
 [data-testid="stFileUploader"] section:hover { border-color: #7B1F3A !important; }
-[data-testid="stFileUploader"] button p, [data-testid="stFileUploader"] button span { color: #FFFFFF !important; }
+[data-testid="stFileUploader"] button[kind="primary"], [data-testid="stFileUploader"] [data-testid="baseButton-primary"] { background: #7B1F3A !important; color: #FFFFFF !important; border: none !important; border-radius: 6px !important; }
+[data-testid="stFileUploader"] button[kind="primary"]:hover, [data-testid="stFileUploader"] [data-testid="baseButton-primary"]:hover { background: #9B3A56 !important; }
 [data-testid="stImage"] { border-radius: 8px; overflow: hidden; border: 1px solid #E8E2E4; }
 [data-testid="stMetric"] { background: #F8F6F7 !important; border: 1px solid #E8E2E4 !important; border-radius: 8px !important; padding: 14px 16px !important; }
 [data-testid="stMetricValue"], [data-testid="stMetricValue"] * { color: #7B1F3A !important; font-weight: 800 !important; }
-[data-testid="stExpander"] { border: 1px solid #E8E2E4 !important; border-radius: 8px !important; overflow: hidden; }
-[data-testid="stExpander"] summary { background: #F8F6F7 !important; padding: 12px 16px !important; }
-[data-testid="stExpander"] summary span { color: #2D2D2D !important; }
-[data-testid="stExpander"] summary svg { color: #7B1F3A !important; width: 16px !important; height: 16px !important; }
-[data-testid="stExpander"] [data-testid="stExpanderDetails"] { padding: 16px !important; background: #FFFFFF !important; }
+[data-testid="stExpander"] { border: 1px solid #E8E2E4 !important; border-radius: 8px !important; overflow: hidden; background: #FFFFFF !important; }
+[data-testid="stExpander"] details { border: none !important; }
+[data-testid="stExpander"] summary { background: #F8F6F7 !important; padding: 12px 16px !important; color: #2D2D2D !important; }
+[data-testid="stExpander"] summary p, [data-testid="stExpander"] summary span { color: #2D2D2D !important; }
+[data-testid="stExpander"] svg { color: #7B1F3A !important; }
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-thumb { background: #D8D2D4; border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: #7B1F3A; }
