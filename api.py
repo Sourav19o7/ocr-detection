@@ -1,50 +1,66 @@
 """
-FastAPI OCR API - Extract text from images with QC validation.
-Deploy on Render or run locally with: uvicorn api:app --host 0.0.0.0 --port 8000
+FastAPI OCR API - Hallmark QC Validation System.
 
-Features:
-- V1: Standard OCR text extraction
-- V2: Hallmark-specific OCR with BIS validation
-- QC: Quality Control workflow for jewelry hallmarking
+Three-Stage Workflow:
+1. Stage 1: Upload CSV/Excel with tag IDs and expected HUIDs
+2. Stage 2: Upload images with tag ID for processing
+3. Stage 3: Retrieve results by tag ID
+
+Deploy on AWS or run locally with: uvicorn api:app --host 0.0.0.0 --port 8000
 """
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, Form
+from fastapi import FastAPI, File, UploadFile, HTTPException, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional, List, Dict
 from PIL import Image
+from datetime import datetime
 import io
 import sys
+import os
+import time
+import pandas as pd
 
 # Import OCR engines
 sys.path.insert(0, "src")
+sys.path.insert(0, "config")
+
 from ocr_model import OCREngine, OCRResult
 from ocr_model_v2 import OCREngineV2, OCRResultV2, HallmarkInfo, HallmarkType, CheckInfo
+from database import (
+    DatabaseManager, get_database, Batch, BatchItem, OCRResult as DBOCRResult,
+    ProcessingStatus, QCDecision
+)
+from storage_service import StorageService, get_storage
 
 
 app = FastAPI(
-    title="OCR API - Jewelry Hallmarking QC",
+    title="Hallmark QC API",
     description="""
-    Extract text from images using PaddleOCR with BIS hallmark validation.
+    AI-powered Hallmark Quality Control System with BIS compliance validation.
 
-    ## Features
-    - **V1 OCR**: Standard text extraction
-    - **V2 OCR**: Hallmark-specific detection with BIS validation
-    - **QC Validation**: Quality control workflow for jewelry hallmarking
+    ## Three-Stage Workflow
 
-    ## QC Integration Flows
-    1. **Hallmarking Stage**: Real-time validation after HUID engraving
-    2. **QC Dashboard**: Batch validation with approval/rejection workflow
+    ### Stage 1: Batch Upload
+    Upload CSV/Excel files containing tag IDs and expected HUIDs.
+
+    ### Stage 2: Image Processing
+    Upload hallmark images with their corresponding tag IDs for OCR processing.
+
+    ### Stage 3: Results Retrieval
+    Retrieve OCR results, expected vs actual HUID comparison, and processed images.
 
     ## BIS Standards
     - Gold: IS 1417 (916, 750, 585, etc.)
     - Silver: IS 2112 (925, 999, etc.)
-    - HUID: Mandatory 6-character alphanumeric code
+    - HUID: Mandatory 6-character alphanumeric code (since April 2023)
     """,
-    version="3.0.0"
+    version="4.0.0"
 )
 
-# CORS middleware for cross-origin requests
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -53,41 +69,64 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount uploads directory for serving local images
+uploads_dir = "./uploads"
+os.makedirs(uploads_dir, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
+
 # Initialize OCR engines at startup
 ocr_engine = None
 ocr_engine_v2 = None
+db: DatabaseManager = None
+storage: StorageService = None
 
 
-class TextResult(BaseModel):
-    text: str
+# Response Models
+class BatchUploadResponse(BaseModel):
+    status: str
+    batch_id: int
+    batch_name: str
+    total_items: int
+    message: str
+
+
+class ImageUploadResponse(BaseModel):
+    status: str
+    tag_id: str
+    expected_huid: str
+    actual_huid: Optional[str]
+    huid_match: bool
     confidence: float
-    approved: bool
+    decision: str
+    message: str
 
 
-class OCRResponse(BaseModel):
-    success: bool
-    results: list[TextResult]
-    full_text: str
-    average_confidence: float
+class ResultResponse(BaseModel):
+    status: str
+    tag_id: str
+    expected_huid: str
+    actual_huid: Optional[str]
+    huid_match: Optional[bool]
+    purity_code: Optional[str]
+    karat: Optional[str]
+    purity_percentage: Optional[float]
+    confidence: Optional[float]
+    decision: Optional[str]
+    rejection_reasons: List[str]
+    raw_ocr_text: Optional[str]
+    image_url: Optional[str]
+    processed_image_url: Optional[str]
+    processing_status: str
 
 
-# V2 Response Models
-class TextResultV2(BaseModel):
-    text: str
-    confidence: float
-    approved: bool
-    hallmark_type: str
-    validated: bool
-    validation_details: dict
-
-
-class CheckData(BaseModel):
-    check_number: Optional[str] = None
-    micr_code: Optional[str] = None
-    ifsc_code: Optional[str] = None
-    account_number: Optional[str] = None
-    bank_name: Optional[str] = None
-    is_valid_check: bool = False
+class BatchResultsResponse(BaseModel):
+    status: str
+    batch_id: int
+    batch_name: str
+    total_items: int
+    processed_items: int
+    statistics: Dict
+    results: List[Dict]
 
 
 class HallmarkData(BaseModel):
@@ -98,484 +137,586 @@ class HallmarkData(BaseModel):
     bis_certified: bool = False
 
 
-class OCRResponseV2(BaseModel):
-    success: bool
-    results: List[TextResultV2]
-    full_text: str
-    average_confidence: float
-    hallmark: HallmarkData
-    check: Optional[CheckData] = None
-
-
 @app.on_event("startup")
 async def startup_event():
-    """Load OCR models on startup."""
-    global ocr_engine, ocr_engine_v2
+    """Initialize services on startup."""
+    global ocr_engine, ocr_engine_v2, db, storage
     ocr_engine = OCREngine()
     ocr_engine_v2 = OCREngineV2(enable_preprocessing=True)
+    db = get_database()
+    storage = get_storage()
+    print(f"Storage type: {storage.storage_type}")
 
 
 @app.get("/")
 async def root():
     """Health check endpoint."""
-    return {"status": "ok", "message": "OCR API is running"}
+    return {
+        "status": "ok",
+        "message": "Hallmark QC API is running",
+        "version": "4.0.0",
+        "storage": storage.storage_type if storage else "not_initialized"
+    }
 
 
 @app.get("/health")
 async def health():
-    """Health check for Render."""
+    """Health check for deployment."""
     return {"status": "healthy"}
 
 
-@app.post("/extract", response_model=OCRResponse)
-async def extract_text(file: UploadFile = File(...)):
+# =============================================================================
+# STAGE 1: Batch Upload (CSV/Excel with tag IDs and expected HUIDs)
+# =============================================================================
+
+@app.post("/stage1/upload-batch", response_model=BatchUploadResponse)
+async def upload_batch(
+    file: UploadFile = File(...),
+    batch_name: Optional[str] = Form(None)
+):
     """
-    Extract text from an uploaded image.
+    Stage 1: Upload CSV/Excel file with tag IDs and expected HUIDs.
 
-    Args:
-        file: Image file (PNG, JPG, JPEG, BMP, WEBP)
+    The file should have at least two columns:
+    - tag_id: Unique identifier for each item
+    - expected_huid: The expected HUID to validate against
 
-    Returns:
-        OCRResponse with extracted text, confidence scores, and approval status
+    Supported formats: CSV, XLSX, XLS
+    """
+    # Validate file type
+    allowed_types = [
+        "text/csv",
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    ]
+    filename_lower = file.filename.lower()
+
+    if file.content_type not in allowed_types and not (
+        filename_lower.endswith(".csv") or
+        filename_lower.endswith(".xlsx") or
+        filename_lower.endswith(".xls")
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid file type. Allowed: CSV, XLSX, XLS"
+        )
+
+    try:
+        contents = await file.read()
+
+        # Parse file based on type
+        if filename_lower.endswith(".csv"):
+            df = pd.read_csv(io.BytesIO(contents))
+        else:
+            df = pd.read_excel(io.BytesIO(contents))
+
+        # Normalize column names
+        df.columns = df.columns.str.lower().str.strip().str.replace(" ", "_")
+
+        # Validate required columns
+        required_columns = ["tag_id", "expected_huid"]
+        # Also check for common variations
+        column_mappings = {
+            "tag_id": ["tag_id", "tagid", "tag", "id", "item_id"],
+            "expected_huid": ["expected_huid", "huid", "expected_id", "expectedhuid"]
+        }
+
+        for req_col, variations in column_mappings.items():
+            found = False
+            for var in variations:
+                if var in df.columns:
+                    if var != req_col:
+                        df = df.rename(columns={var: req_col})
+                    found = True
+                    break
+            if not found:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Missing required column: {req_col}. Found columns: {list(df.columns)}"
+                )
+
+        # Remove duplicates and empty rows
+        df = df.dropna(subset=["tag_id", "expected_huid"])
+        df = df.drop_duplicates(subset=["tag_id"])
+
+        if len(df) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="No valid rows found in the file"
+            )
+
+        # Create batch
+        batch_name = batch_name or f"Batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        batch = Batch(
+            batch_name=batch_name,
+            total_items=len(df),
+            status="pending"
+        )
+        batch_id = db.create_batch(batch)
+
+        # Create batch items
+        for _, row in df.iterrows():
+            item = BatchItem(
+                batch_id=batch_id,
+                tag_id=str(row["tag_id"]).strip(),
+                expected_huid=str(row["expected_huid"]).strip().upper(),
+                status=ProcessingStatus.PENDING
+            )
+            db.create_batch_item(item)
+
+        return BatchUploadResponse(
+            status="success",
+            batch_id=batch_id,
+            batch_name=batch_name,
+            total_items=len(df),
+            message=f"Successfully uploaded {len(df)} items"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to process file: {str(e)}")
+
+
+@app.get("/stage1/batches")
+async def list_batches():
+    """List all uploaded batches."""
+    batches = db.get_all_batches()
+    return {
+        "status": "success",
+        "batches": [b.to_dict() for b in batches]
+    }
+
+
+@app.get("/stage1/batch/{batch_id}")
+async def get_batch_details(batch_id: int):
+    """Get details of a specific batch."""
+    batch = db.get_batch(batch_id)
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch not found")
+
+    items = db.get_batch_items(batch_id)
+    stats = db.get_batch_statistics(batch_id)
+
+    return {
+        "status": "success",
+        "batch": batch.to_dict(),
+        "statistics": stats,
+        "items": [item.to_dict() for item in items]
+    }
+
+
+# =============================================================================
+# STAGE 2: Image Upload and Processing
+# =============================================================================
+
+@app.post("/stage2/upload-image", response_model=ImageUploadResponse)
+async def upload_and_process_image(
+    file: UploadFile = File(...),
+    tag_id: str = Form(...)
+):
+    """
+    Stage 2: Upload an image for a specific tag ID and process it.
+
+    The image will be:
+    1. Stored in S3 (or local storage)
+    2. Processed through OCR
+    3. Compared against the expected HUID from Stage 1
     """
     # Validate file type
     allowed_types = ["image/png", "image/jpeg", "image/jpg", "image/bmp", "image/webp"]
     if file.content_type not in allowed_types:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid file type. Allowed: PNG, JPG, JPEG, BMP, WEBP"
+            detail="Invalid file type. Allowed: PNG, JPG, JPEG, BMP, WEBP"
+        )
+
+    # Check if tag_id exists in database
+    batch_item = db.get_batch_item_by_tag(tag_id)
+    if not batch_item:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Tag ID '{tag_id}' not found. Please upload batch data first (Stage 1)."
         )
 
     try:
-        # Read image
+        start_time = time.time()
+
+        # Read and validate image
         contents = await file.read()
         image = Image.open(io.BytesIO(contents))
 
-        # Convert to RGB if necessary
         if image.mode != "RGB":
             image = image.convert("RGB")
 
-        # Extract text
+        # Upload original image to storage
+        image_path, image_url = storage.upload_image(
+            contents,
+            tag_id,
+            file.filename,
+            prefix="originals"
+        )
+
+        # Update batch item with image path
+        db.update_batch_item_image(tag_id, image_path, image_url)
+
+        # Process with OCR
+        hallmark_info = ocr_engine_v2.extract_with_hallmark_info(image)
+
+        # Extract actual HUID
+        actual_huid = hallmark_info.huid
+        expected_huid = batch_item.expected_huid
+
+        # Compare HUIDs
+        huid_match = False
+        if actual_huid and expected_huid:
+            huid_match = actual_huid.upper().strip() == expected_huid.upper().strip()
+
+        # Determine decision
+        decision = QCDecision.PENDING
+        rejection_reasons = []
+
+        purity_valid = hallmark_info.purity_code is not None
+        huid_valid = actual_huid is not None
+
+        if not purity_valid:
+            rejection_reasons.append("missing_purity_mark")
+        if not huid_valid:
+            rejection_reasons.append("missing_huid")
+        if actual_huid and not huid_match:
+            rejection_reasons.append("huid_mismatch")
+
+        # Decision logic
+        if purity_valid and huid_valid and huid_match:
+            if hallmark_info.overall_confidence >= 0.85:
+                decision = QCDecision.APPROVED
+            elif hallmark_info.overall_confidence >= 0.50:
+                decision = QCDecision.MANUAL_REVIEW
+            else:
+                decision = QCDecision.REJECTED
+                rejection_reasons.append("low_confidence")
+        elif purity_valid and huid_valid and not huid_match:
+            decision = QCDecision.REJECTED
+        else:
+            if hallmark_info.overall_confidence < 0.50:
+                decision = QCDecision.REJECTED
+            else:
+                decision = QCDecision.MANUAL_REVIEW
+
+        processing_time = int((time.time() - start_time) * 1000)
+
+        # Save processed image with annotations (optional)
+        processed_image_path = None
+        processed_image_url = None
+
+        # Create OCR result record
+        ocr_result = DBOCRResult(
+            batch_item_id=batch_item.id,
+            tag_id=tag_id,
+            expected_huid=expected_huid,
+            actual_huid=actual_huid,
+            huid_match=huid_match,
+            purity_code=hallmark_info.purity_code,
+            karat=hallmark_info.karat,
+            purity_percentage=hallmark_info.purity_percentage,
+            confidence=hallmark_info.overall_confidence,
+            decision=decision,
+            rejection_reasons=rejection_reasons,
+            raw_ocr_text=" ".join([r.text for r in hallmark_info.all_results]),
+            processed_image_path=processed_image_path,
+            processed_image_url=processed_image_url,
+            processing_time_ms=processing_time,
+        )
+        db.create_ocr_result(ocr_result)
+
+        # Update batch item status
+        db.update_batch_item_status(tag_id, ProcessingStatus.COMPLETED)
+
+        # Update batch progress
+        batch = db.get_batch(batch_item.batch_id)
+        if batch:
+            db.update_batch_progress(batch.id, batch.processed_items + 1)
+
+        return ImageUploadResponse(
+            status="success",
+            tag_id=tag_id,
+            expected_huid=expected_huid,
+            actual_huid=actual_huid,
+            huid_match=huid_match,
+            confidence=round(hallmark_info.overall_confidence, 3),
+            decision=decision.value,
+            message="Image processed successfully"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Update status to failed
+        db.update_batch_item_status(tag_id, ProcessingStatus.FAILED)
+        raise HTTPException(status_code=500, detail=f"Image processing failed: {str(e)}")
+
+
+@app.post("/stage2/upload-image-bulk")
+async def upload_images_bulk(
+    files: List[UploadFile] = File(...),
+):
+    """
+    Stage 2 (Bulk): Upload multiple images at once.
+
+    Image filenames should contain the tag_id (e.g., TAG001.jpg, TAG002.png).
+    """
+    results = []
+    errors = []
+
+    for file in files:
+        # Extract tag_id from filename
+        filename = os.path.splitext(file.filename)[0]
+        tag_id = filename.strip()
+
+        try:
+            # Check if tag exists
+            batch_item = db.get_batch_item_by_tag(tag_id)
+            if not batch_item:
+                errors.append({
+                    "filename": file.filename,
+                    "tag_id": tag_id,
+                    "error": "Tag ID not found in batch data"
+                })
+                continue
+
+            # Process the image
+            contents = await file.read()
+            image = Image.open(io.BytesIO(contents))
+
+            if image.mode != "RGB":
+                image = image.convert("RGB")
+
+            # Upload image
+            image_path, image_url = storage.upload_image(
+                contents,
+                tag_id,
+                file.filename,
+                prefix="originals"
+            )
+
+            db.update_batch_item_image(tag_id, image_path, image_url)
+
+            # Process OCR
+            hallmark_info = ocr_engine_v2.extract_with_hallmark_info(image)
+            actual_huid = hallmark_info.huid
+            huid_match = (
+                actual_huid and
+                actual_huid.upper().strip() == batch_item.expected_huid.upper().strip()
+            )
+
+            # Simple decision
+            if hallmark_info.overall_confidence >= 0.85 and huid_match:
+                decision = QCDecision.APPROVED
+            elif hallmark_info.overall_confidence >= 0.50:
+                decision = QCDecision.MANUAL_REVIEW
+            else:
+                decision = QCDecision.REJECTED
+
+            # Save result
+            ocr_result = DBOCRResult(
+                batch_item_id=batch_item.id,
+                tag_id=tag_id,
+                expected_huid=batch_item.expected_huid,
+                actual_huid=actual_huid,
+                huid_match=huid_match,
+                purity_code=hallmark_info.purity_code,
+                confidence=hallmark_info.overall_confidence,
+                decision=decision,
+                raw_ocr_text=" ".join([r.text for r in hallmark_info.all_results]),
+            )
+            db.create_ocr_result(ocr_result)
+            db.update_batch_item_status(tag_id, ProcessingStatus.COMPLETED)
+
+            results.append({
+                "tag_id": tag_id,
+                "status": "success",
+                "huid_match": huid_match,
+                "decision": decision.value
+            })
+
+        except Exception as e:
+            errors.append({
+                "filename": file.filename,
+                "tag_id": tag_id,
+                "error": str(e)
+            })
+
+    return {
+        "status": "completed",
+        "processed": len(results),
+        "errors": len(errors),
+        "results": results,
+        "error_details": errors
+    }
+
+
+# =============================================================================
+# STAGE 3: Results Retrieval
+# =============================================================================
+
+@app.get("/stage3/result/{tag_id}", response_model=ResultResponse)
+async def get_result_by_tag(tag_id: str):
+    """
+    Stage 3: Get complete result for a specific tag ID.
+
+    Returns:
+    - Expected HUID (from batch upload)
+    - Actual HUID (from OCR)
+    - Match status
+    - OCR confidence and decision
+    - Original and processed image URLs
+    """
+    result = db.get_full_result_by_tag(tag_id)
+
+    if not result:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Tag ID '{tag_id}' not found"
+        )
+
+    return ResultResponse(
+        status="success",
+        tag_id=result["tag_id"],
+        expected_huid=result["expected_huid"],
+        actual_huid=result.get("actual_huid"),
+        huid_match=result.get("huid_match"),
+        purity_code=result.get("purity_code"),
+        karat=result.get("karat"),
+        purity_percentage=result.get("purity_percentage"),
+        confidence=result.get("confidence"),
+        decision=result.get("decision"),
+        rejection_reasons=result.get("rejection_reasons", []),
+        raw_ocr_text=result.get("raw_ocr_text"),
+        image_url=result.get("image_url"),
+        processed_image_url=result.get("processed_image_url"),
+        processing_status=result.get("status", "pending")
+    )
+
+
+@app.get("/stage3/batch/{batch_id}/results", response_model=BatchResultsResponse)
+async def get_batch_results(batch_id: int):
+    """
+    Stage 3: Get all results for a batch.
+
+    Returns complete statistics and individual results for all items in the batch.
+    """
+    batch = db.get_batch(batch_id)
+    if not batch:
+        raise HTTPException(status_code=404, detail="Batch not found")
+
+    results = db.get_results_by_batch(batch_id)
+    stats = db.get_batch_statistics(batch_id)
+
+    return BatchResultsResponse(
+        status="success",
+        batch_id=batch_id,
+        batch_name=batch.batch_name,
+        total_items=batch.total_items,
+        processed_items=stats.get("status_counts", {}).get("completed", 0),
+        statistics=stats,
+        results=results
+    )
+
+
+@app.get("/stage3/search")
+async def search_results(
+    tag_id: Optional[str] = Query(None, description="Search by tag ID"),
+    huid: Optional[str] = Query(None, description="Search by HUID"),
+    decision: Optional[str] = Query(None, description="Filter by decision"),
+    batch_id: Optional[int] = Query(None, description="Filter by batch"),
+):
+    """Search and filter results."""
+    # This would be enhanced with proper search functionality
+    if tag_id:
+        result = db.get_full_result_by_tag(tag_id)
+        if result:
+            return {"status": "success", "results": [result]}
+        return {"status": "success", "results": []}
+
+    if batch_id:
+        results = db.get_results_by_batch(batch_id)
+        if decision:
+            results = [r for r in results if r.get("decision") == decision]
+        return {"status": "success", "results": results}
+
+    return {"status": "success", "results": [], "message": "Please provide search criteria"}
+
+
+# =============================================================================
+# Legacy Endpoints (kept for backward compatibility)
+# =============================================================================
+
+@app.post("/extract")
+async def extract_text(file: UploadFile = File(...)):
+    """Legacy: Extract text from an uploaded image."""
+    allowed_types = ["image/png", "image/jpeg", "image/jpg", "image/bmp", "image/webp"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(status_code=400, detail="Invalid file type")
+
+    try:
+        contents = await file.read()
+        image = Image.open(io.BytesIO(contents))
+
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+
         ocr_results = ocr_engine.extract_text_with_confidence(image)
 
-        # Build response
         results = [
-            TextResult(
-                text=r.text,
-                confidence=r.confidence,
-                approved=r.confidence >= 0.75
-            )
+            {"text": r.text, "confidence": r.confidence, "approved": r.confidence >= 0.75}
             for r in ocr_results
         ]
 
-        full_text = "\n".join([r.text for r in ocr_results])
-        avg_confidence = sum(r.confidence for r in ocr_results) / len(ocr_results) if ocr_results else 0.0
-
-        return OCRResponse(
-            success=True,
-            results=results,
-            full_text=full_text,
-            average_confidence=avg_confidence
-        )
-
+        return {
+            "success": True,
+            "results": results,
+            "full_text": "\n".join([r.text for r in ocr_results]),
+            "average_confidence": sum(r.confidence for r in ocr_results) / len(ocr_results) if ocr_results else 0.0
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"OCR processing failed: {str(e)}")
 
 
-@app.post("/extract/v2", response_model=OCRResponseV2)
+@app.post("/extract/v2")
 async def extract_text_v2(file: UploadFile = File(...)):
-    """
-    Extract text from an uploaded image using V2 engine with hallmark detection.
-
-    Features:
-    - Advanced image preprocessing for metal surfaces
-    - Hallmark pattern recognition (purity marks, HUID)
-    - BIS standard validation
-    - Reflection removal and contrast enhancement
-
-    Args:
-        file: Image file (PNG, JPG, JPEG, BMP, WEBP)
-
-    Returns:
-        OCRResponseV2 with extracted text, hallmark info, and validation status
-    """
-    # Validate file type
+    """Legacy: Extract text with hallmark detection."""
     allowed_types = ["image/png", "image/jpeg", "image/jpg", "image/bmp", "image/webp"]
     if file.content_type not in allowed_types:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid file type. Allowed: PNG, JPG, JPEG, BMP, WEBP"
-        )
+        raise HTTPException(status_code=400, detail="Invalid file type")
 
     try:
-        # Read image
         contents = await file.read()
         image = Image.open(io.BytesIO(contents))
 
-        # Convert to RGB if necessary
         if image.mode != "RGB":
             image = image.convert("RGB")
 
-        # Extract text with hallmark info
         hallmark_info = ocr_engine_v2.extract_with_hallmark_info(image)
 
-        # Build response
-        results = [
-            TextResultV2(
-                text=r.text,
-                confidence=r.confidence,
-                approved=r.confidence >= 0.75,
-                hallmark_type=r.hallmark_type.value,
-                validated=r.validated,
-                validation_details=r.validation_details
-            )
-            for r in hallmark_info.all_results
-        ]
-
-        full_text = "\n".join([r.text for r in hallmark_info.all_results])
-
-        # Build check data if available
-        check_data = None
-        if hallmark_info.check_info:
-            check_data = CheckData(
-                check_number=hallmark_info.check_info.check_number,
-                micr_code=hallmark_info.check_info.micr_code,
-                ifsc_code=hallmark_info.check_info.ifsc_code,
-                account_number=hallmark_info.check_info.account_number,
-                bank_name=hallmark_info.check_info.bank_name,
-                is_valid_check=hallmark_info.check_info.is_valid_check
-            )
-
-        return OCRResponseV2(
-            success=True,
-            results=results,
-            full_text=full_text,
-            average_confidence=hallmark_info.overall_confidence,
-            hallmark=HallmarkData(
-                purity_code=hallmark_info.purity_code,
-                karat=hallmark_info.karat,
-                purity_percentage=hallmark_info.purity_percentage,
-                huid=hallmark_info.huid,
-                bis_certified=hallmark_info.bis_certified
-            ),
-            check=check_data
-        )
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"OCR V2 processing failed: {str(e)}")
-
-
-# QC Validation Models
-class QCValidationRequest(BaseModel):
-    job_id: str
-    expected_purity: Optional[str] = None
-    metadata: Optional[Dict] = None
-
-
-class QCHallmarkData(BaseModel):
-    purity_code: Optional[str] = None
-    karat: Optional[str] = None
-    purity_percentage: Optional[float] = None
-    huid: Optional[str] = None
-
-
-class QCValidationStatus(BaseModel):
-    purity_valid: bool
-    huid_valid: bool
-    bis_logo_detected: bool
-
-
-class QCRejectionInfo(BaseModel):
-    reasons: List[str]
-    message: str
-
-
-class QCProcessingDetails(BaseModel):
-    ocr_corrections_applied: int
-    raw_ocr_text: str
-    image_quality_score: float
-    processing_time_ms: int
-
-
-class QCValidationData(BaseModel):
-    job_id: str
-    decision: str  # approved, rejected, manual_review
-    confidence: float
-    bis_certified: bool
-    hallmark_data: QCHallmarkData
-    validation_status: QCValidationStatus
-    rejection_info: Optional[QCRejectionInfo] = None
-    processing_details: QCProcessingDetails
-    requires_manual_review: bool
-    qc_override: Optional[str] = None
-
-
-class QCValidationResponse(BaseModel):
-    status: str
-    data: QCValidationData
-    metadata: Optional[Dict] = None
-
-
-class QCOverrideRequest(BaseModel):
-    job_id: str
-    override_decision: str  # approved or rejected
-    override_reason: str
-    operator_id: str
-    notes: Optional[str] = ""
-
-
-class QCBatchItem(BaseModel):
-    job_id: str
-    image_path: Optional[str] = None
-    expected_purity: Optional[str] = None
-
-
-class QCBatchRequest(BaseModel):
-    batch_id: str
-    items: List[QCBatchItem]
-    callback_url: Optional[str] = None
-
-
-class QCBatchSummary(BaseModel):
-    total: int
-    approved: int
-    rejected: int
-    manual_review: int
-    errors: int
-
-
-class QCBatchResponse(BaseModel):
-    status: str
-    batch_id: str
-    summary: QCBatchSummary
-    processing_time_ms: int
-
-
-# Initialize QC service
-qc_service = None
-
-
-def get_qc_service():
-    """Get or create QC service instance."""
-    global qc_service
-    if qc_service is None:
-        try:
-            from qc_service import HallmarkQCService
-            qc_service = HallmarkQCService(workflow="hallmarking_stage")
-        except ImportError:
-            raise HTTPException(
-                status_code=503,
-                detail="QC service not available. Please check qc_service.py is present."
-            )
-    return qc_service
-
-
-@app.post("/qc/validate")
-async def qc_validate_hallmark(
-    file: UploadFile = File(...),
-    job_id: str = Form(...),
-    expected_purity: Optional[str] = Form(None),
-):
-    """
-    Validate a hallmark image against BIS standards.
-
-    This endpoint is used for real-time QC validation during the hallmarking process.
-
-    **Integration Flow 1: Hallmarking Stage**
-    - Camera captures image after HUID engraving
-    - Image + job_id sent to this endpoint
-    - Returns validation result for ERP dashboard
-
-    Args:
-        file: Image file of the hallmarked jewelry
-        job_id: Unique job identifier from hallmarking machine/ERP
-        expected_purity: Expected purity code for cross-validation (optional)
-
-    Returns:
-        QCValidationResponse with decision (approved/rejected/manual_review)
-    """
-    # Validate file type
-    allowed_types = ["image/png", "image/jpeg", "image/jpg", "image/bmp", "image/webp"]
-    if file.content_type not in allowed_types:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid file type. Allowed: PNG, JPG, JPEG, BMP, WEBP"
-        )
-
-    try:
-        # Read image
-        contents = await file.read()
-        image = Image.open(io.BytesIO(contents))
-
-        # Convert to RGB if necessary
-        if image.mode != "RGB":
-            image = image.convert("RGB")
-
-        # Get QC service
-        service = get_qc_service()
-
-        # Validate
-        result = service.validate_image(
-            job_id=job_id,
-            image=image,
-            expected_purity=expected_purity,
-        )
-
-        return result
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"QC validation failed: {str(e)}")
-
-
-@app.post("/qc/validate/v2")
-async def qc_validate_hallmark_v2(file: UploadFile = File(...)):
-    """
-    Enhanced hallmark validation with full BIS compliance checking.
-
-    This endpoint provides detailed validation with:
-    - Purity code validation against BIS IS 1417/IS 2112
-    - HUID format validation (mandatory since April 2023)
-    - BIS logo detection
-    - Confidence scoring and auto-approval logic
-
-    Returns structured decision: approved, rejected, or manual_review
-    """
-    # Validate file type
-    allowed_types = ["image/png", "image/jpeg", "image/jpg", "image/bmp", "image/webp"]
-    if file.content_type not in allowed_types:
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid file type. Allowed: PNG, JPG, JPEG, BMP, WEBP"
-        )
-
-    try:
-        # Read image
-        contents = await file.read()
-        image = Image.open(io.BytesIO(contents))
-
-        # Convert to RGB if necessary
-        if image.mode != "RGB":
-            image = image.convert("RGB")
-
-        # Extract hallmark info using V2 engine
-        hallmark_info = ocr_engine_v2.extract_with_hallmark_info(image)
-
-        # Determine QC decision based on validation
-        decision = "manual_review"
-        rejection_reasons = []
-
-        # Check purity
-        purity_valid = hallmark_info.purity_code is not None
-        if not purity_valid:
-            rejection_reasons.append("missing_purity_mark")
-
-        # Check HUID (mandatory since April 2023)
-        huid_valid = hallmark_info.huid is not None
-        if not huid_valid:
-            rejection_reasons.append("missing_huid")
-
-        # Determine BIS certification
-        bis_certified = purity_valid and huid_valid
-
-        # Auto-decision logic
-        if purity_valid and huid_valid:
-            if hallmark_info.overall_confidence >= 0.85:
-                decision = "approved"
-            elif hallmark_info.overall_confidence >= 0.50:
-                decision = "manual_review"
-            else:
-                decision = "rejected"
-                rejection_reasons.append("low_confidence")
-        else:
-            if hallmark_info.overall_confidence < 0.50:
-                decision = "rejected"
-            else:
-                decision = "manual_review"
-
         return {
-            "status": "success",
-            "data": {
-                "job_id": "AUTO-GENERATED",
-                "decision": decision,
-                "confidence": round(hallmark_info.overall_confidence, 3),
-                "bis_certified": bis_certified,
-                "hallmark_data": {
-                    "purity_code": hallmark_info.purity_code,
-                    "karat": hallmark_info.karat,
-                    "purity_percentage": hallmark_info.purity_percentage,
-                    "huid": hallmark_info.huid,
-                },
-                "validation_status": {
-                    "purity_valid": purity_valid,
-                    "huid_valid": huid_valid,
-                    "bis_logo_detected": bis_certified,
-                },
-                "rejection_info": {
-                    "reasons": rejection_reasons,
-                    "message": "; ".join(rejection_reasons) if rejection_reasons else None,
-                } if rejection_reasons else None,
-                "processing_details": {
-                    "ocr_corrections_applied": 0,
-                    "raw_ocr_text": " ".join([r.text for r in hallmark_info.all_results]),
-                    "image_quality_score": 0.8,
-                    "processing_time_ms": 0,
-                },
-                "requires_manual_review": decision == "manual_review",
+            "success": True,
+            "full_text": " ".join([r.text for r in hallmark_info.all_results]),
+            "average_confidence": hallmark_info.overall_confidence,
+            "hallmark": {
+                "purity_code": hallmark_info.purity_code,
+                "karat": hallmark_info.karat,
+                "purity_percentage": hallmark_info.purity_percentage,
+                "huid": hallmark_info.huid,
+                "bis_certified": hallmark_info.bis_certified
             }
         }
-
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"QC validation failed: {str(e)}")
-
-
-@app.post("/qc/override")
-async def qc_override_decision(request: QCOverrideRequest):
-    """
-    Apply QC personnel override to a validation decision.
-
-    Used when QC operator disagrees with AI decision and wants to
-    manually approve or reject.
-
-    **Feedback Loop**: Overrides are stored for model improvement.
-    """
-    try:
-        # Validate override decision
-        if request.override_decision not in ["approved", "rejected"]:
-            raise HTTPException(
-                status_code=400,
-                detail="override_decision must be 'approved' or 'rejected'"
-            )
-
-        # In a real implementation, you would fetch the original result
-        # from a database using job_id and apply the override via QC service.
-        # For now, we acknowledge the override.
-        return {
-            "status": "success",
-            "message": f"Override applied for job {request.job_id}",
-            "override": {
-                "job_id": request.job_id,
-                "decision": request.override_decision,
-                "reason": request.override_reason,
-                "operator_id": request.operator_id,
-                "notes": request.notes,
-            }
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Override failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"OCR processing failed: {str(e)}")
 
 
 @app.get("/qc/rules")
 async def get_qc_rules():
-    """
-    Get current QC validation rules and BIS compliance standards.
-
-    Returns the rule configuration used for hallmark validation.
-    """
+    """Get current QC validation rules and BIS compliance standards."""
     return {
         "bis_standards": {
             "gold_grades": {
@@ -600,31 +741,13 @@ async def get_qc_rules():
             "auto_approve_confidence": 0.85,
             "auto_reject_confidence": 0.50,
             "manual_review_range": [0.50, 0.85],
-            "require_all_components": True,
-        },
-        "rejection_reasons": [
-            "invalid_purity_code",
-            "invalid_huid_format",
-            "missing_huid",
-            "missing_purity_mark",
-            "missing_bis_logo",
-            "low_confidence",
-            "unclear_engraving",
-            "incomplete_hallmark",
-        ]
+        }
     }
 
 
 @app.post("/validate/huid")
 async def validate_huid(huid: str = Form(...)):
-    """
-    Validate HUID format (does not check against BIS database).
-
-    HUID Requirements (mandatory since April 2023):
-    - 6 characters
-    - Alphanumeric (A-Z, 0-9)
-    - Must contain at least one letter
-    """
+    """Validate HUID format."""
     import re
 
     cleaned = huid.upper().strip()
@@ -633,7 +756,7 @@ async def validate_huid(huid: str = Form(...)):
     is_valid = (
         len(cleaned) == 6 and
         bool(re.match(r'^[A-Z0-9]{6}$', cleaned)) and
-        bool(re.search(r'[A-Z]', cleaned))  # Must have at least one letter
+        bool(re.search(r'[A-Z]', cleaned))
     )
 
     return {
