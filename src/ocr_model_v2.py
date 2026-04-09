@@ -64,6 +64,8 @@ class HallmarkInfo:
     all_results: List[OCRResultV2] = field(default_factory=list)
     # Check information
     check_info: Optional[CheckInfo] = None
+    # Preprocessing stage images (PIL Images keyed by stage name)
+    preprocessing_stages: Optional[Dict[str, Image.Image]] = None
 
 
 @dataclass
@@ -588,6 +590,9 @@ class OCREngineV2:
         # Check BIS certification (purity mark + HUID present)
         hallmark_info.bis_certified = bool(hallmark_info.purity_code and hallmark_info.huid)
 
+        # Attach preprocessing stages for visualization
+        hallmark_info.preprocessing_stages = self._last_preprocessing_stages
+
         return hallmark_info
 
     def extract_text_with_confidence(self, image: Image.Image) -> List[OCRResultV2]:
@@ -600,8 +605,22 @@ class OCREngineV2:
         Returns:
             List of OCRResultV2 objects with hallmark-specific information
         """
-        # Use raw image directly without preprocessing
-        img_for_ocr = np.array(image)
+        # Apply preprocessing pipeline for metal surface hallmark images
+        if self.enable_preprocessing:
+            processed = self.preprocessor.process(image)
+            img_for_ocr = processed["for_ocr"]
+            # Store preprocessing stages as PIL Images for visualization
+            self._last_preprocessing_stages = {}
+            for name, img_array in processed.items():
+                if len(img_array.shape) == 2:
+                    self._last_preprocessing_stages[name] = Image.fromarray(img_array)
+                else:
+                    self._last_preprocessing_stages[name] = Image.fromarray(
+                        cv2.cvtColor(img_array, cv2.COLOR_BGR2RGB)
+                    )
+        else:
+            img_for_ocr = np.array(image)
+            self._last_preprocessing_stages = None
 
         # Run OCR
         result = self.ocr.predict(img_for_ocr)

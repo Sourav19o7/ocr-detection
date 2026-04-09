@@ -50,11 +50,85 @@ st.markdown("""
         min-height: 100vh;
     }
 
+    /* Force light mode on Streamlit's main containers */
+    [data-testid="stAppViewContainer"],
+    [data-testid="stAppViewBlockContainer"],
+    .main .block-container {
+        background: #F5F1F2 !important;
+    }
+
     #MainMenu, footer, header {visibility: hidden;}
 
     .block-container {
         padding: 0 2rem 2rem 2rem;
         max-width: 1400px;
+    }
+
+    /* --- Global text color overrides (force light theme) --- */
+    .stApp p, .stApp span, .stApp label, .stApp div,
+    .stMarkdown, .stMarkdown p, .stMarkdown span,
+    .stMarkdown strong, .stMarkdown em, .stMarkdown li,
+    [data-testid="stText"] {
+        color: #2D2D2D !important;
+    }
+
+    /* Muted text */
+    .stCaption, [data-testid="stCaptionContainer"] p,
+    [data-testid="stCaptionContainer"] span {
+        color: #9B9BAB !important;
+    }
+
+    /* Widget labels */
+    .stTextInput label, .stSelectbox label, .stMultiSelect label,
+    .stNumberInput label, .stTextArea label, .stFileUploader label,
+    .stRadio label, .stCheckbox label, .stDateInput label,
+    [data-testid="stWidgetLabel"] label,
+    [data-testid="stWidgetLabel"] p {
+        color: #2D2D2D !important;
+    }
+
+    /* Radio button option text */
+    .stRadio [role="radiogroup"] label p,
+    .stRadio [role="radiogroup"] label span,
+    .stRadio [role="radiogroup"] label div {
+        color: #2D2D2D !important;
+    }
+
+    /* Spinner text */
+    .stSpinner > div > span {
+        color: #6B6B7B !important;
+    }
+
+    /* Alert boxes */
+    [data-testid="stAlert"] {
+        background: #F8F6F7 !important;
+        color: #2D2D2D !important;
+        border: 1px solid #E8E2E4 !important;
+    }
+
+    [data-testid="stAlert"] p {
+        color: #2D2D2D !important;
+    }
+
+    /* Expander overrides */
+    [data-testid="stExpander"] {
+        border: 1px solid #E8E2E4 !important;
+        border-radius: 10px !important;
+        background: #FFFFFF !important;
+    }
+
+    [data-testid="stExpander"] summary {
+        background: #F8F6F7 !important;
+        color: #2D2D2D !important;
+    }
+
+    [data-testid="stExpander"] summary span,
+    [data-testid="stExpander"] summary p {
+        color: #2D2D2D !important;
+    }
+
+    [data-testid="stExpander"] [data-testid="stExpanderDetails"] {
+        background: #FFFFFF !important;
     }
 
     /* Top Bar */
@@ -677,11 +751,14 @@ st.markdown("""
         border: 1px solid #E8E2E4;
     }
 
-    .stTabs [data-baseweb="tab"] {
+    .stTabs [data-baseweb="tab"],
+    .stTabs [data-baseweb="tab"] span,
+    .stTabs [data-baseweb="tab"] p,
+    .stTabs [data-baseweb="tab"] div {
         height: 40px;
-        background: transparent;
+        background: transparent !important;
         border-radius: 6px;
-        color: #6B6B7B;
+        color: #6B6B7B !important;
         font-weight: 600;
         font-size: 12px;
         padding: 0 20px;
@@ -689,12 +766,16 @@ st.markdown("""
         font-family: 'DM Sans', sans-serif !important;
     }
 
-    .stTabs [data-baseweb="tab"]:hover {
-        background: rgba(123, 31, 58, 0.06);
-        color: #7B1F3A;
+    .stTabs [data-baseweb="tab"]:hover,
+    .stTabs [data-baseweb="tab"]:hover span {
+        background: rgba(123, 31, 58, 0.06) !important;
+        color: #7B1F3A !important;
     }
 
-    .stTabs [aria-selected="true"] {
+    .stTabs [aria-selected="true"],
+    .stTabs [aria-selected="true"] span,
+    .stTabs [aria-selected="true"] p,
+    .stTabs [aria-selected="true"] div {
         background: #7B1F3A !important;
         color: #FFFFFF !important;
         font-weight: 700;
@@ -1288,6 +1369,32 @@ def render_v1_tab():
             """, unsafe_allow_html=True)
 
 
+def render_preprocessing_stages(stages: dict):
+    """Render preprocessing stage images in an expandable section."""
+    # Display order and human-readable labels
+    stage_labels = [
+        ("original", "Original"),
+        ("resized", "Resized"),
+        ("reflection_removed", "Reflection Removed"),
+        ("denoised", "Denoised"),
+        ("grayscale", "Grayscale"),
+        ("contrast_enhanced", "Contrast Enhanced (CLAHE)"),
+        ("sharpened", "Sharpened"),
+        ("binary", "Adaptive Binary"),
+        ("for_ocr", "OCR Input"),
+        ("for_ocr_enhanced", "OCR Input (Enhanced)"),
+    ]
+
+    with st.expander("Preprocessing Stages", expanded=False):
+        for stage_key, label in stage_labels:
+            if stage_key in stages:
+                st.markdown(f"""
+                <p style="font-size: 12px; font-weight: 600; color: #6B6B7B;
+                          margin: 8px 0 4px 0;">{label}</p>
+                """, unsafe_allow_html=True)
+                st.image(stages[stage_key], use_container_width=True)
+
+
 def render_v2_tab():
     """Render the V2 (Hallmark OCR) tab content."""
     if "ocr_results_v2" not in st.session_state:
@@ -1300,6 +1407,8 @@ def render_v2_tab():
         st.session_state.current_image_v2 = None
     if "processing_v2" not in st.session_state:
         st.session_state.processing_v2 = False
+    if "preprocessing_stages_v2" not in st.session_state:
+        st.session_state.preprocessing_stages_v2 = None
 
     col_main, col_results = st.columns([1, 1], gap="large")
 
@@ -1332,6 +1441,7 @@ def render_v2_tab():
         else:
             st.session_state.ocr_results_v2 = None
             st.session_state.hallmark_info_v2 = None
+            st.session_state.preprocessing_stages_v2 = None
             st.session_state.processed_v2 = False
             st.session_state.current_image_v2 = None
             render_steps(0)
@@ -1371,6 +1481,7 @@ def render_v2_tab():
             hallmark_info = ocr_engine_v2.extract_with_hallmark_info(st.session_state.current_image_v2)
             st.session_state.ocr_results_v2 = hallmark_info.all_results
             st.session_state.hallmark_info_v2 = hallmark_info
+            st.session_state.preprocessing_stages_v2 = hallmark_info.preprocessing_stages
             st.session_state.processed_v2 = True
             st.session_state.processing_v2 = False
 
@@ -1389,6 +1500,10 @@ def render_v2_tab():
                 combined_text = "\n".join([r.text for r in st.session_state.ocr_results_v2])
                 st.markdown('<p class="output-label" style="margin-top: 14px;">Full Text</p>', unsafe_allow_html=True)
                 st.text_area("Full text", combined_text, height=150, label_visibility="collapsed", key="text_v2")
+
+            # Show preprocessing stages
+            if st.session_state.preprocessing_stages_v2:
+                render_preprocessing_stages(st.session_state.preprocessing_stages_v2)
 
             st.markdown('</div>', unsafe_allow_html=True)
         else:

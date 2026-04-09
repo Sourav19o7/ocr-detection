@@ -94,6 +94,13 @@ def get_styles():
 
     .stApp {{ background: var(--bg-primary) !important; }}
 
+    /* Override Streamlit's main container backgrounds */
+    [data-testid="stAppViewContainer"],
+    [data-testid="stAppViewBlockContainer"],
+    .main .block-container {{
+        background: var(--bg-primary) !important;
+    }}
+
     #MainMenu, footer, header, [data-testid="stToolbar"],
     [data-testid="stDecoration"], [data-testid="stStatusWidget"] {{
         display: none !important;
@@ -102,6 +109,84 @@ def get_styles():
     .block-container {{
         padding: 2rem 3rem !important;
         max-width: 1400px;
+    }}
+
+    /* --- Global text color overrides for Streamlit elements --- */
+    .stApp p, .stApp span, .stApp label, .stApp div,
+    .stMarkdown, .stMarkdown p, .stMarkdown span,
+    .stMarkdown strong, .stMarkdown em, .stMarkdown li,
+    [data-testid="stText"],
+    [data-testid="stCaptionContainer"] {{
+        color: var(--text-primary) !important;
+    }}
+
+    /* Muted / secondary text */
+    .stCaption, [data-testid="stCaptionContainer"] p,
+    [data-testid="stCaptionContainer"] span {{
+        color: var(--text-muted) !important;
+    }}
+
+    /* Widget labels */
+    .stTextInput label, .stSelectbox label, .stMultiSelect label,
+    .stNumberInput label, .stTextArea label, .stFileUploader label,
+    .stRadio label, .stCheckbox label, .stDateInput label,
+    [data-testid="stWidgetLabel"] label,
+    [data-testid="stWidgetLabel"] p {{
+        color: var(--text-primary) !important;
+    }}
+
+    /* Radio button text */
+    .stRadio [role="radiogroup"] label p,
+    .stRadio [role="radiogroup"] label span,
+    .stRadio [role="radiogroup"] label div {{
+        color: var(--text-primary) !important;
+    }}
+
+    /* Selectbox dropdown menu */
+    [data-baseweb="popover"],
+    [data-baseweb="menu"],
+    [data-baseweb="popover"] li {{
+        background: var(--bg-card) !important;
+        color: var(--text-primary) !important;
+    }}
+
+    [data-baseweb="menu"] [role="option"] {{
+        color: var(--text-primary) !important;
+    }}
+
+    [data-baseweb="menu"] [role="option"]:hover {{
+        background: var(--bg-input) !important;
+    }}
+
+    /* Spinner text */
+    .stSpinner > div > span {{
+        color: var(--text-secondary) !important;
+    }}
+
+    /* Disabled button */
+    .stButton > button:disabled {{
+        background: var(--bg-input) !important;
+        color: var(--text-muted) !important;
+        box-shadow: none !important;
+        opacity: 0.6;
+    }}
+
+    /* Streamlit's info/success/error/warning boxes */
+    [data-testid="stAlert"] {{
+        background: var(--bg-card) !important;
+        color: var(--text-primary) !important;
+        border: 1px solid var(--border) !important;
+    }}
+
+    /* Progress bar track override */
+    .stProgress > div > div {{
+        background: var(--bg-input) !important;
+    }}
+
+    /* st.dataframe container */
+    [data-testid="stDataFrame"],
+    [data-testid="stDataFrame"] > div {{
+        background: var(--bg-card) !important;
     }}
 
     /* Tabs */
@@ -113,7 +198,10 @@ def get_styles():
         border: 1px solid var(--border);
     }}
 
-    .stTabs [data-baseweb="tab"] {{
+    .stTabs [data-baseweb="tab"],
+    .stTabs [data-baseweb="tab"] span,
+    .stTabs [data-baseweb="tab"] p,
+    .stTabs [data-baseweb="tab"] div {{
         height: 44px;
         border-radius: 8px;
         font-weight: 600;
@@ -125,7 +213,8 @@ def get_styles():
         transition: all 0.2s ease;
     }}
 
-    .stTabs [data-baseweb="tab"]:hover {{
+    .stTabs [data-baseweb="tab"]:hover,
+    .stTabs [data-baseweb="tab"]:hover span {{
         color: var(--text-primary) !important;
         background: var(--bg-input) !important;
     }}
@@ -133,12 +222,16 @@ def get_styles():
     .stTabs [data-baseweb="tab-highlight"],
     .stTabs [data-baseweb="tab-border"] {{ display: none !important; }}
 
-    .stTabs [aria-selected="true"] {{
+    .stTabs [aria-selected="true"],
+    .stTabs [aria-selected="true"] span,
+    .stTabs [aria-selected="true"] p,
+    .stTabs [aria-selected="true"] div {{
         background: var(--accent) !important;
         color: #FFFFFF !important;
     }}
 
-    .stTabs [aria-selected="true"]:hover {{
+    .stTabs [aria-selected="true"]:hover,
+    .stTabs [aria-selected="true"]:hover span {{
         background: var(--accent-hover) !important;
         color: #FFFFFF !important;
     }}
@@ -230,6 +323,20 @@ def get_styles():
 
     [data-testid="stExpander"] summary {{
         background: var(--bg-input) !important;
+        color: var(--text-primary) !important;
+    }}
+
+    [data-testid="stExpander"] summary span,
+    [data-testid="stExpander"] summary p {{
+        color: var(--text-primary) !important;
+    }}
+
+    [data-testid="stExpander"] [data-testid="stExpanderDetails"] {{
+        background: var(--bg-card) !important;
+    }}
+
+    [data-testid="stExpander"] [data-testid="stExpanderDetails"] p,
+    [data-testid="stExpander"] [data-testid="stExpanderDetails"] span {{
         color: var(--text-primary) !important;
     }}
 
@@ -468,11 +575,55 @@ def get_styles():
 
     .dataframe td {{
         color: var(--text-primary) !important;
+        background: var(--bg-card) !important;
+    }}
+
+    /* Glide data grid (st.dataframe uses this internally) */
+    [data-testid="stDataFrame"] canvas + div {{
+        background: var(--bg-card) !important;
     }}
 
     /* Success/Error messages */
     .stSuccess, .stError, .stWarning, .stInfo {{
         border-radius: 10px !important;
+    }}
+
+    /* File uploader text */
+    [data-testid="stFileUploader"] section div,
+    [data-testid="stFileUploader"] section span,
+    [data-testid="stFileUploader"] section small,
+    [data-testid="stFileUploader"] section p {{
+        color: var(--text-secondary) !important;
+    }}
+
+    [data-testid="stFileUploader"] section button {{
+        color: var(--accent) !important;
+    }}
+
+    /* Uploaded file name chip */
+    [data-testid="stFileUploader"] [data-testid="stMarkdown"] {{
+        color: var(--text-primary) !important;
+    }}
+
+    /* Sidebar */
+    [data-testid="stSidebar"] {{
+        background: var(--bg-secondary) !important;
+    }}
+
+    [data-testid="stSidebar"] p,
+    [data-testid="stSidebar"] span,
+    [data-testid="stSidebar"] label {{
+        color: var(--text-primary) !important;
+    }}
+
+    /* Streamlit tab content panel */
+    .stTabs [data-baseweb="tab-panel"] {{
+        background: transparent !important;
+    }}
+
+    /* Horizontal rule / dividers */
+    hr {{
+        border-color: var(--border) !important;
     }}
     </style>
     """
@@ -592,6 +743,109 @@ def render_stage1():
             st.caption("Could not load batches")
 
 
+def render_ocr_detect_results(ocr_data: dict):
+    """Render standalone OCR detection results."""
+    hallmark = ocr_data.get("hallmark", {})
+    detections = ocr_data.get("detections", [])
+    avg_conf = ocr_data.get("average_confidence", 0)
+    bis = hallmark.get("bis_certified", False)
+
+    bis_class = "badge-success" if bis else "badge-warning"
+    bis_text = "BIS CERTIFIED" if bis else "NOT CERTIFIED"
+
+    # Hallmark info card
+    hallmark_rows = ""
+    if hallmark.get("purity_code"):
+        hallmark_rows += f"""
+        <div class="data-row">
+            <span class="data-label">Purity Code</span>
+            <span class="data-value">{hallmark['purity_code']}</span>
+        </div>"""
+    if hallmark.get("karat"):
+        hallmark_rows += f"""
+        <div class="data-row">
+            <span class="data-label">Karat</span>
+            <span class="data-value">{hallmark['karat']}</span>
+        </div>"""
+    if hallmark.get("purity_percentage"):
+        hallmark_rows += f"""
+        <div class="data-row">
+            <span class="data-label">Purity</span>
+            <span class="data-value">{hallmark['purity_percentage']}%</span>
+        </div>"""
+    if hallmark.get("huid"):
+        hallmark_rows += f"""
+        <div class="data-row">
+            <span class="data-label">HUID</span>
+            <span class="data-value">{hallmark['huid']}</span>
+        </div>"""
+
+    st.markdown(f"""
+    <div class="result-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <div style="font-size: 16px; font-weight: 700; color: var(--text-primary);">
+                OCR Detection Results
+            </div>
+            <div style="display: flex; gap: 8px;">
+                <span class="badge badge-info">{avg_conf*100:.1f}% Confidence</span>
+                <span class="badge {bis_class}">{bis_text}</span>
+            </div>
+        </div>
+        {hallmark_rows if hallmark_rows else '<div style="color: var(--text-muted); font-size: 13px;">No hallmark data detected</div>'}
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Individual detections
+    if detections:
+        with st.expander("Detected Text", expanded=True):
+            for det in detections:
+                conf = det["confidence"]
+                conf_pct = conf * 100
+                det_type = det.get("type", "unknown")
+                validated = det.get("validated", False)
+
+                if conf >= 0.85:
+                    conf_color = "var(--success)"
+                elif conf >= 0.50:
+                    conf_color = "var(--warning)"
+                else:
+                    conf_color = "var(--danger)"
+
+                type_badge = ""
+                if det_type == "purity_mark":
+                    type_badge = '<span class="badge badge-info" style="font-size: 10px; padding: 2px 8px;">Purity</span>'
+                elif det_type == "huid":
+                    type_badge = '<span class="badge badge-info" style="font-size: 10px; padding: 2px 8px;">HUID</span>'
+                elif det_type == "check":
+                    type_badge = '<span class="badge badge-warning" style="font-size: 10px; padding: 2px 8px;">Check</span>'
+
+                validated_badge = ""
+                if validated:
+                    validated_badge = '<span class="badge badge-success" style="font-size: 10px; padding: 2px 8px;">Validated</span>'
+
+                st.markdown(f"""
+                <div style="display: flex; justify-content: space-between; align-items: center;
+                            padding: 10px 0; border-bottom: 1px solid var(--border-light);">
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span style="font-weight: 600; color: var(--text-primary); font-size: 14px;">
+                            {det['text']}
+                        </span>
+                        {type_badge}
+                        {validated_badge}
+                    </div>
+                    <span style="font-weight: 700; color: {conf_color}; font-size: 13px;">
+                        {conf_pct:.0f}%
+                    </span>
+                </div>
+                """, unsafe_allow_html=True)
+
+    # Full text
+    full_text = ocr_data.get("full_text", "")
+    if full_text:
+        with st.expander("Full Extracted Text"):
+            st.text_area("OCR Text", full_text, height=100, label_visibility="collapsed", key="ocr_detect_text")
+
+
 def render_stage2():
     """Stage 2: Upload and process images."""
     st.markdown("""
@@ -618,8 +872,40 @@ def render_stage2():
             image = Image.open(uploaded_image)
             st.image(image, caption="Preview", use_container_width=True)
 
-        if uploaded_image and tag_id:
-            if st.button("Process Image", key="process_single_btn", use_container_width=True):
+            # --- Detect OCR button (standalone, no tag_id needed) ---
+            btn_col1, btn_col2 = st.columns(2)
+
+            with btn_col1:
+                detect_ocr_clicked = st.button("Detect OCR", key="detect_ocr_btn", use_container_width=True)
+
+            with btn_col2:
+                process_clicked = st.button(
+                    "Process Image",
+                    key="process_single_btn",
+                    use_container_width=True,
+                    disabled=not tag_id
+                )
+
+            # Handle Detect OCR
+            if detect_ocr_clicked:
+                with st.spinner("Running OCR detection..."):
+                    uploaded_image.seek(0)
+                    files = {"file": (uploaded_image.name, uploaded_image.getvalue(), uploaded_image.type)}
+
+                    response = requests.post(
+                        f"{API_BASE_URL}/extract/v2",
+                        files=files,
+                    )
+
+                    if response.status_code == 200:
+                        ocr_data = response.json()
+                        st.session_state.ocr_detect_result = ocr_data
+                    else:
+                        st.error(f"OCR detection failed: {response.json().get('detail', 'Unknown error')}")
+                        st.session_state.ocr_detect_result = None
+
+            # Handle Process Image (requires tag_id)
+            if process_clicked and tag_id:
                 with st.spinner("Processing..."):
                     uploaded_image.seek(0)
                     files = {"file": (uploaded_image.name, uploaded_image.getvalue(), uploaded_image.type)}
@@ -639,11 +925,26 @@ def render_stage2():
                         match_class = "badge-success" if result['huid_match'] else "badge-danger"
                         match_text = "MATCH" if result['huid_match'] else "MISMATCH"
 
+                        decision_raw = result.get('decision', 'pending')
+                        decision_display = decision_raw.replace('_', ' ').upper()
+                        decision_class = {
+                            'approved': 'badge-success', 'rejected': 'badge-danger',
+                            'manual_review': 'badge-warning',
+                        }.get(decision_raw, 'badge-info')
+
+                        conf_val = result.get('confidence', 0)
+                        if conf_val >= 0.85:
+                            conf_color = "var(--success)"
+                        elif conf_val >= 0.50:
+                            conf_color = "var(--warning)"
+                        else:
+                            conf_color = "var(--danger)"
+
                         st.markdown(f"""
                         <div class="result-card">
                             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                                 <span class="badge {match_class}">{match_text}</span>
-                                <span class="badge badge-info">{result['decision'].upper()}</span>
+                                <span class="badge {decision_class}">{decision_display}</span>
                             </div>
                             <div class="data-row">
                                 <span class="data-label">Expected HUID</span>
@@ -655,13 +956,22 @@ def render_stage2():
                             </div>
                             <div class="data-row">
                                 <span class="data-label">Confidence</span>
-                                <span class="data-value">{result['confidence']*100:.1f}%</span>
+                                <span class="data-value" style="color: {conf_color};">{conf_val*100:.1f}%</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" style="width: {conf_val*100:.0f}%; background: {conf_color};"></div>
                             </div>
                         </div>
                         """, unsafe_allow_html=True)
                     else:
                         error_detail = response.json().get('detail', 'Processing failed')
                         st.error(f"Error: {error_detail}")
+
+            # Display OCR detection results
+            if hasattr(st.session_state, 'ocr_detect_result') and st.session_state.ocr_detect_result:
+                render_ocr_detect_results(st.session_state.ocr_detect_result)
+        else:
+            st.session_state.ocr_detect_result = None
 
     with col2:
         st.markdown("**Bulk Image Upload**")
@@ -723,10 +1033,11 @@ def render_stage2():
 
                 # Summary
                 success_count = len([r for r in results if r['status'] == 'success'])
+                error_count = len([r for r in results if r['status'] == 'error'])
                 match_count = len([r for r in results if r.get('match')])
 
                 st.markdown(f"""
-                <div class="stat-grid" style="grid-template-columns: repeat(3, 1fr);">
+                <div class="stat-grid" style="grid-template-columns: repeat(4, 1fr);">
                     <div class="stat-card">
                         <div class="stat-value">{len(bulk_files)}</div>
                         <div class="stat-label">Total</div>
@@ -739,8 +1050,33 @@ def render_stage2():
                         <div class="stat-value" style="color: {'var(--success)' if match_count > 0 else 'var(--danger)'};">{match_count}</div>
                         <div class="stat-label">Matches</div>
                     </div>
+                    <div class="stat-card">
+                        <div class="stat-value" style="color: {'var(--danger)' if error_count > 0 else 'var(--success)'};">{error_count}</div>
+                        <div class="stat-label">Errors</div>
+                    </div>
                 </div>
                 """, unsafe_allow_html=True)
+
+                # Per-file results table
+                if results:
+                    df_bulk = pd.DataFrame(results)
+                    if 'match' in df_bulk.columns:
+                        df_bulk['match'] = df_bulk['match'].map({True: 'Match', False: 'Mismatch', None: '--'})
+                    if 'decision' in df_bulk.columns:
+                        df_bulk['decision'] = df_bulk['decision'].apply(
+                            lambda x: (x or '--').replace('_', ' ').title() if isinstance(x, str) else '--'
+                        )
+                    if 'error' in df_bulk.columns:
+                        df_bulk['error'] = df_bulk['error'].fillna('')
+                    if 'status' in df_bulk.columns:
+                        df_bulk['status'] = df_bulk['status'].apply(lambda x: x.title())
+
+                    col_renames = {
+                        'tag_id': 'Tag ID', 'status': 'Status',
+                        'match': 'Match', 'decision': 'Decision', 'error': 'Error'
+                    }
+                    df_bulk = df_bulk.rename(columns={k: v for k, v in col_renames.items() if k in df_bulk.columns})
+                    st.dataframe(df_bulk, use_container_width=True, hide_index=True)
 
 
 def render_stage3():
@@ -829,6 +1165,50 @@ def render_stage3():
                 'manual_review': 'badge-warning',
             }.get(decision, 'badge-info')
 
+            # Build rejection reasons HTML
+            rejection_reasons = result.get('rejection_reasons', [])
+            rejection_html = ""
+            if rejection_reasons:
+                reason_badges = ""
+                reason_labels = {
+                    "missing_huid": "Missing HUID",
+                    "missing_purity_mark": "Missing Purity Mark",
+                    "huid_mismatch": "HUID Mismatch",
+                    "low_confidence": "Low Confidence",
+                    "invalid_purity_code": "Invalid Purity Code",
+                    "invalid_huid_format": "Invalid HUID Format",
+                    "missing_bis_logo": "Missing BIS Logo",
+                    "unclear_engraving": "Unclear Engraving",
+                    "ocr_mismatch": "OCR Mismatch",
+                    "incomplete_hallmark": "Incomplete Hallmark",
+                    "non_compliant_format": "Non-Compliant Format",
+                    "purity_huid_mismatch": "Purity-HUID Mismatch",
+                }
+                for reason in rejection_reasons:
+                    label = reason_labels.get(reason, reason.replace('_', ' ').title())
+                    reason_badges += f'<span class="badge badge-danger" style="margin: 2px;">{label}</span> '
+                rejection_html = f"""
+                <div class="data-row" style="flex-wrap: wrap;">
+                    <span class="data-label">Rejection Reasons</span>
+                    <div>{reason_badges}</div>
+                </div>"""
+
+            # Processing status
+            proc_status = result.get('processing_status', 'pending')
+            status_class = {
+                'completed': 'badge-success', 'failed': 'badge-danger',
+                'processing': 'badge-info', 'manual_review': 'badge-warning',
+            }.get(proc_status, 'badge-info')
+
+            # Confidence bar color
+            conf_val = result.get('confidence') or 0
+            if conf_val >= 0.85:
+                conf_bar_color = "var(--success)"
+            elif conf_val >= 0.50:
+                conf_bar_color = "var(--warning)"
+            else:
+                conf_bar_color = "var(--danger)"
+
             st.markdown(f"""
             <div class="result-card">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
@@ -836,8 +1216,9 @@ def render_stage3():
                         Tag: {result['tag_id']}
                     </div>
                     <div style="display: flex; gap: 8px;">
+                        <span class="badge {status_class}">{proc_status.replace('_', ' ').upper()}</span>
                         {match_badge}
-                        <span class="badge {decision_class}">{decision.upper() if decision else 'PENDING'}</span>
+                        <span class="badge {decision_class}">{decision.replace('_', ' ').upper() if decision else 'PENDING'}</span>
                     </div>
                 </div>
 
@@ -858,11 +1239,25 @@ def render_stage3():
                     <span class="data-value">{result.get('karat') or '--'}</span>
                 </div>
                 <div class="data-row">
-                    <span class="data-label">Confidence</span>
-                    <span class="data-value">{(result.get('confidence') or 0)*100:.1f}%</span>
+                    <span class="data-label">Purity</span>
+                    <span class="data-value">{f"{result['purity_percentage']}%" if result.get('purity_percentage') else '--'}</span>
                 </div>
+                <div class="data-row">
+                    <span class="data-label">Confidence</span>
+                    <span class="data-value" style="color: {conf_bar_color};">{conf_val*100:.1f}%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: {conf_val*100:.0f}%; background: {conf_bar_color};"></div>
+                </div>
+                {rejection_html}
             </div>
             """, unsafe_allow_html=True)
+
+            # Raw OCR text in an expander
+            raw_text = result.get('raw_ocr_text')
+            if raw_text:
+                with st.expander("Raw OCR Text"):
+                    st.text_area("OCR output", raw_text, height=80, label_visibility="collapsed", key="stage3_raw_text")
 
             # Show image if available
             if result.get('image_url'):
@@ -878,6 +1273,10 @@ def render_stage3():
             processed = batch_data.get('processed_items', 0)
             matches = stats.get('huid_matches', 0)
             mismatches = stats.get('huid_mismatches', 0)
+            decision_counts = stats.get('decision_counts', {})
+            approved = decision_counts.get('approved', 0)
+            rejected = decision_counts.get('rejected', 0)
+            manual_rev = decision_counts.get('manual_review', 0)
 
             st.markdown(f"""
             <div class="stat-grid">
@@ -900,12 +1299,52 @@ def render_stage3():
             </div>
             """, unsafe_allow_html=True)
 
+            # Decision breakdown
+            if approved or rejected or manual_rev:
+                st.markdown(f"""
+                <div class="stat-grid" style="grid-template-columns: repeat(3, 1fr); margin-top: 0;">
+                    <div class="stat-card">
+                        <div class="stat-value" style="color: var(--success);">{approved}</div>
+                        <div class="stat-label">Approved</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" style="color: var(--danger);">{rejected}</div>
+                        <div class="stat-label">Rejected</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" style="color: var(--warning);">{manual_rev}</div>
+                        <div class="stat-label">Manual Review</div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
             # Results table
             results = batch_data.get('results', [])
             if results:
                 df = pd.DataFrame(results)
-                df = df[['tag_id', 'expected_huid', 'actual_huid', 'huid_match', 'confidence', 'decision', 'status']]
-                df.columns = ['Tag ID', 'Expected HUID', 'Actual HUID', 'Match', 'Confidence', 'Decision', 'Status']
+                # Select and rename columns safely
+                cols_available = [c for c in ['tag_id', 'expected_huid', 'actual_huid', 'huid_match', 'confidence', 'decision', 'status'] if c in df.columns]
+                df = df[cols_available]
+
+                # Format values for display
+                if 'huid_match' in df.columns:
+                    df['huid_match'] = df['huid_match'].map({True: 'Match', False: 'Mismatch', None: 'Pending'})
+                if 'confidence' in df.columns:
+                    df['confidence'] = df['confidence'].apply(lambda x: f"{(x or 0)*100:.1f}%" if x is not None else '--')
+                if 'decision' in df.columns:
+                    df['decision'] = df['decision'].apply(lambda x: (x or 'pending').replace('_', ' ').title())
+                if 'status' in df.columns:
+                    df['status'] = df['status'].apply(lambda x: (x or 'pending').replace('_', ' ').title())
+                if 'actual_huid' in df.columns:
+                    df['actual_huid'] = df['actual_huid'].fillna('Not detected')
+
+                col_renames = {
+                    'tag_id': 'Tag ID', 'expected_huid': 'Expected HUID',
+                    'actual_huid': 'Actual HUID', 'huid_match': 'Match',
+                    'confidence': 'Confidence', 'decision': 'Decision', 'status': 'Status'
+                }
+                df = df.rename(columns={k: v for k, v in col_renames.items() if k in df.columns})
+
                 st.dataframe(df, use_container_width=True, hide_index=True)
 
         else:

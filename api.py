@@ -698,6 +698,16 @@ async def extract_text_v2(file: UploadFile = File(...)):
 
         hallmark_info = ocr_engine_v2.extract_with_hallmark_info(image)
 
+        # Build individual detection results
+        detections = []
+        for r in hallmark_info.all_results:
+            detections.append({
+                "text": r.text,
+                "confidence": round(r.confidence, 4),
+                "type": r.hallmark_type.value,
+                "validated": r.validated,
+            })
+
         return {
             "success": True,
             "full_text": " ".join([r.text for r in hallmark_info.all_results]),
@@ -708,7 +718,8 @@ async def extract_text_v2(file: UploadFile = File(...)):
                 "purity_percentage": hallmark_info.purity_percentage,
                 "huid": hallmark_info.huid,
                 "bis_certified": hallmark_info.bis_certified
-            }
+            },
+            "detections": detections
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"OCR processing failed: {str(e)}")
