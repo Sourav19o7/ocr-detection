@@ -12,7 +12,7 @@ Deploy on AWS or run locally with: uvicorn api:app --host 0.0.0.0 --port 8000
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form, Query, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
+from fastapi.responses import JSONResponse, RedirectResponse, FileResponse
 from pydantic import BaseModel
 from typing import Optional, List, Dict
 from PIL import Image
@@ -186,91 +186,13 @@ async def startup_event():
 
 
 # =============================================================================
-# Static Website & Authentication Endpoints
+# Homepage & Health Endpoints
 # =============================================================================
 
-# Serve static files (CSS, JS, images)
-static_dir = os.path.join(os.path.dirname(__file__), "static")
-if os.path.exists(static_dir):
-    app.mount("/static", StaticFiles(directory=static_dir), name="static")
-
-
-@app.get("/", response_class=HTMLResponse)
-async def serve_homepage():
-    """Serve the BAC Data Collection homepage."""
-    index_path = os.path.join(static_dir, "index.html")
-    if os.path.exists(index_path):
-        with open(index_path, 'r') as f:
-            return HTMLResponse(content=f.read())
-    return HTMLResponse(content="<h1>Hallmark QC API</h1><p>Visit <a href='/docs'>/docs</a> for API documentation</p>")
-
-
-@app.get("/bac-logo.png")
-async def serve_bac_logo():
-    """Serve BAC logo."""
-    logo_path = os.path.join(static_dir, "bac-logo.png")
-    if os.path.exists(logo_path):
-        return FileResponse(logo_path, media_type="image/png")
-    raise HTTPException(status_code=404, detail="Logo not found")
-
-
-@app.get("/logo.png")
-async def serve_logo():
-    """Serve Rezinix logo."""
-    logo_path = os.path.join(static_dir, "logo.png")
-    if os.path.exists(logo_path):
-        return FileResponse(logo_path, media_type="image/png")
-    raise HTTPException(status_code=404, detail="Logo not found")
-
-
-@app.get("/styles.css")
-async def serve_styles():
-    """Serve CSS file."""
-    css_path = os.path.join(static_dir, "styles.css")
-    if os.path.exists(css_path):
-        return FileResponse(css_path, media_type="text/css")
-    raise HTTPException(status_code=404, detail="Styles not found")
-
-
-@app.get("/app.js")
-async def serve_js():
-    """Serve JavaScript file."""
-    js_path = os.path.join(static_dir, "app.js")
-    if os.path.exists(js_path):
-        return FileResponse(js_path, media_type="application/javascript")
-    raise HTTPException(status_code=404, detail="JavaScript not found")
-
-
-class LoginRequest(BaseModel):
-    username: str
-    password: str
-
-
-@app.get("/api/auth/status")
-async def auth_status(request: Request):
-    """Check authentication status."""
-    authenticated = request.session.get("authenticated", False)
-    return {"authenticated": authenticated}
-
-
-@app.post("/api/login")
-async def login(request: Request, credentials: LoginRequest):
-    """Login endpoint."""
-    username = credentials.username
-    password = credentials.password
-
-    if username in login_users and login_users[username] == password:
-        request.session["authenticated"] = True
-        request.session["username"] = username
-        return {"success": True}
-    raise HTTPException(status_code=401, detail="Invalid credentials")
-
-
-@app.post("/api/logout")
-async def logout(request: Request):
-    """Logout endpoint."""
-    request.session.clear()
-    return {"success": True}
+@app.get("/", response_class=RedirectResponse)
+async def homepage():
+    """Redirect to API documentation."""
+    return RedirectResponse(url="/docs")
 
 
 @app.get("/api/health")
