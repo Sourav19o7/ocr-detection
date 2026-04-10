@@ -9,19 +9,27 @@ Three-Stage Workflow:
 Deploy on AWS or run locally with: uvicorn api:app --host 0.0.0.0 --port 8000
 """
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, Form, Query
+from fastapi import FastAPI, File, UploadFile, HTTPException, Form, Query, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
 from pydantic import BaseModel
 from typing import Optional, List, Dict
 from PIL import Image
 from datetime import datetime
+from starlette.middleware.sessions import SessionMiddleware
 import io
 import sys
 import os
 import time
 import pandas as pd
+import boto3
+from botocore.exceptions import ClientError
+from dotenv import load_dotenv
+import secrets
+
+# Load environment variables
+load_dotenv()
 
 # Import OCR engines
 sys.path.insert(0, "src")
@@ -60,6 +68,12 @@ app = FastAPI(
     version="4.0.0"
 )
 
+# Session middleware for authentication
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv('SESSION_SECRET', secrets.token_hex(32))
+)
+
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
@@ -68,6 +82,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Parse login users from environment variable (format: user1:pass1,user2:pass2)
+login_users = {}
+if os.getenv('LOGIN_USERS'):
+    for user_pass in os.getenv('LOGIN_USERS').split(','):
+        parts = user_pass.strip().split(':')
+        if len(parts) == 2:
+            login_users[parts[0].strip()] = parts[1].strip()
 
 # Mount uploads directory for serving local images
 uploads_dir = "./uploads"
@@ -79,6 +101,21 @@ ocr_engine = None
 ocr_engine_v2 = None
 db: DatabaseManager = None
 storage: StorageService = None
+
+# S3 Client for presigned URLs
+s3_client = None
+
+def get_s3_client():
+    """Get or create S3 client."""
+    global s3_client
+    if s3_client is None:
+        s3_client = boto3.client(
+            's3',
+            region_name=os.getenv('AWS_REGION', 'ap-south-1'),
+            aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+            aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY')
+        )
+    return s3_client
 
 
 # Response Models
@@ -148,9 +185,97 @@ async def startup_event():
     print(f"Storage type: {storage.storage_type}")
 
 
-@app.get("/")
-async def root():
-    """Health check endpoint."""
+# =============================================================================
+# Static Website & Authentication Endpoints
+# =============================================================================
+
+# Serve static files (CSS, JS, images)
+static_dir = os.path.join(os.path.dirname(__file__), "static")
+if os.path.exists(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
+
+@app.get("/", response_class=HTMLResponse)
+async def serve_homepage():
+    """Serve the BAC Data Collection homepage."""
+    index_path = os.path.join(static_dir, "index.html")
+    if os.path.exists(index_path):
+        with open(index_path, 'r') as f:
+            return HTMLResponse(content=f.read())
+    return HTMLResponse(content="<h1>Hallmark QC API</h1><p>Visit <a href='/docs'>/docs</a> for API documentation</p>")
+
+
+@app.get("/bac-logo.png")
+async def serve_bac_logo():
+    """Serve BAC logo."""
+    logo_path = os.path.join(static_dir, "bac-logo.png")
+    if os.path.exists(logo_path):
+        return FileResponse(logo_path, media_type="image/png")
+    raise HTTPException(status_code=404, detail="Logo not found")
+
+
+@app.get("/logo.png")
+async def serve_logo():
+    """Serve Rezinix logo."""
+    logo_path = os.path.join(static_dir, "logo.png")
+    if os.path.exists(logo_path):
+        return FileResponse(logo_path, media_type="image/png")
+    raise HTTPException(status_code=404, detail="Logo not found")
+
+
+@app.get("/styles.css")
+async def serve_styles():
+    """Serve CSS file."""
+    css_path = os.path.join(static_dir, "styles.css")
+    if os.path.exists(css_path):
+        return FileResponse(css_path, media_type="text/css")
+    raise HTTPException(status_code=404, detail="Styles not found")
+
+
+@app.get("/app.js")
+async def serve_js():
+    """Serve JavaScript file."""
+    js_path = os.path.join(static_dir, "app.js")
+    if os.path.exists(js_path):
+        return FileResponse(js_path, media_type="application/javascript")
+    raise HTTPException(status_code=404, detail="JavaScript not found")
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+@app.get("/api/auth/status")
+async def auth_status(request: Request):
+    """Check authentication status."""
+    authenticated = request.session.get("authenticated", False)
+    return {"authenticated": authenticated}
+
+
+@app.post("/api/login")
+async def login(request: Request, credentials: LoginRequest):
+    """Login endpoint."""
+    username = credentials.username
+    password = credentials.password
+
+    if username in login_users and login_users[username] == password:
+        request.session["authenticated"] = True
+        request.session["username"] = username
+        return {"success": True}
+    raise HTTPException(status_code=401, detail="Invalid credentials")
+
+
+@app.post("/api/logout")
+async def logout(request: Request):
+    """Logout endpoint."""
+    request.session.clear()
+    return {"success": True}
+
+
+@app.get("/api/health")
+async def api_health():
+    """API health check endpoint."""
     return {
         "status": "ok",
         "message": "Hallmark QC API is running",
@@ -645,6 +770,102 @@ async def search_results(
         return {"status": "success", "results": results}
 
     return {"status": "success", "results": [], "message": "Please provide search criteria"}
+
+
+# =============================================================================
+# S3 Presigned URL Endpoints (for direct browser uploads)
+# =============================================================================
+
+class PresignedUrlRequest(BaseModel):
+    fileName: str
+    contentType: Optional[str] = "application/octet-stream"
+
+
+class PresignedUrlResponse(BaseModel):
+    uploadUrl: str
+    key: str
+    fileName: str
+
+
+@app.post("/api/get-upload-url", response_model=PresignedUrlResponse)
+async def get_upload_url(request: PresignedUrlRequest):
+    """
+    Get a presigned URL for direct S3 upload (authenticated uploads).
+
+    This endpoint generates a presigned URL that allows direct upload
+    to S3 from the browser without routing through the server.
+    """
+    try:
+        client = get_s3_client()
+        bucket_name = os.getenv('S3_BUCKET_NAME')
+        folder_path = os.getenv('S3_FOLDER_PATH', 'uploads/')
+
+        if not bucket_name:
+            raise HTTPException(status_code=500, detail="S3 bucket not configured")
+
+        timestamp = int(time.time() * 1000)
+        unique_filename = f"{timestamp}-{request.fileName}"
+        s3_key = f"{folder_path}{unique_filename}"
+
+        presigned_url = client.generate_presigned_url(
+            'put_object',
+            Params={
+                'Bucket': bucket_name,
+                'Key': s3_key,
+                'ContentType': request.contentType
+            },
+            ExpiresIn=3600  # URL valid for 1 hour
+        )
+
+        return PresignedUrlResponse(
+            uploadUrl=presigned_url,
+            key=s3_key,
+            fileName=unique_filename
+        )
+    except ClientError as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate presigned URL: {str(e)}")
+
+
+@app.post("/api/get-ocr-upload-url", response_model=PresignedUrlResponse)
+async def get_ocr_upload_url(request: PresignedUrlRequest):
+    """
+    Get a presigned URL for OCR image uploads (no auth required).
+
+    This endpoint is specifically for uploading hallmark images for OCR processing.
+    Images are stored in a dedicated OCR folder in S3.
+    """
+    try:
+        client = get_s3_client()
+        bucket_name = os.getenv('S3_BUCKET_NAME')
+        folder_path = os.getenv('S3_OCR_FOLDER_PATH', 'ocr-images/')
+
+        if not bucket_name:
+            raise HTTPException(status_code=500, detail="S3 bucket not configured")
+
+        timestamp = int(time.time() * 1000)
+        unique_filename = f"{timestamp}-{request.fileName}"
+        s3_key = f"{folder_path}{unique_filename}"
+
+        # Default to image/jpeg for OCR uploads
+        content_type = request.contentType if request.contentType != "application/octet-stream" else "image/jpeg"
+
+        presigned_url = client.generate_presigned_url(
+            'put_object',
+            Params={
+                'Bucket': bucket_name,
+                'Key': s3_key,
+                'ContentType': content_type
+            },
+            ExpiresIn=3600  # URL valid for 1 hour
+        )
+
+        return PresignedUrlResponse(
+            uploadUrl=presigned_url,
+            key=s3_key,
+            fileName=unique_filename
+        )
+    except ClientError as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate presigned URL: {str(e)}")
 
 
 # =============================================================================
