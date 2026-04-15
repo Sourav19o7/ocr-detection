@@ -16,7 +16,10 @@ import io
 from datetime import datetime
 import time
 
-API_BASE_URL = "http://localhost:8000"
+import os
+
+# Get API URL from environment or use default
+API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 
 # Page config
 st.set_page_config(
@@ -1357,6 +1360,311 @@ def render_stage3():
             """, unsafe_allow_html=True)
 
 
+def render_erp_monitor():
+    """ERP Integration Monitor: View pending items and manual review queue."""
+    st.markdown("""
+    <div class="stage-card">
+        <span class="stage-number">E</span>
+        <span class="stage-title">ERP Integration Monitor</span>
+        <div class="stage-desc">Monitor items from ERP system, manage manual reviews, and view statistics</div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Statistics section
+    st.markdown("**Today's Statistics**")
+    try:
+        response = requests.get(f"{API_BASE_URL}/api/erp/statistics")
+        if response.status_code == 200:
+            stats = response.json()
+
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Total Items", stats.get("total_items", 0))
+            with col2:
+                st.metric("Processed", stats.get("processed", 0))
+            with col3:
+                st.metric("Approved", stats.get("approved", 0))
+            with col4:
+                st.metric("Pending Review", stats.get("manual_review", 0))
+
+            # Decision breakdown
+            st.markdown(f"""
+            <div class="stat-grid" style="grid-template-columns: repeat(5, 1fr); margin-top: 16px;">
+                <div class="stat-card">
+                    <div class="stat-value">{stats.get('huid_matches', 0)}</div>
+                    <div class="stat-label">HUID Matches</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" style="color: var(--danger);">{stats.get('huid_mismatches', 0)}</div>
+                    <div class="stat-label">Mismatches</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" style="color: var(--success);">{stats.get('approved', 0)}</div>
+                    <div class="stat-label">Approved</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" style="color: var(--danger);">{stats.get('rejected', 0)}</div>
+                    <div class="stat-label">Rejected</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" style="color: var(--warning);">{stats.get('manual_review', 0)}</div>
+                    <div class="stat-label">Manual Review</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            avg_conf = stats.get("average_confidence", 0)
+            if avg_conf > 0:
+                st.markdown(f"**Average Confidence:** {avg_conf*100:.1f}%")
+
+    except Exception as e:
+        st.error(f"Could not load statistics: {e}")
+
+    st.markdown("---")
+
+    # Manual Review Queue
+    st.markdown("**Manual Review Queue**")
+
+    col1, col2 = st.columns([3, 1])
+
+    with col2:
+        decision_filter = st.selectbox(
+            "Filter by",
+            ["manual_review", "pending", "all"],
+            key="erp_decision_filter"
+        )
+
+    try:
+        params = {}
+        if decision_filter != "all":
+            params["decision"] = decision_filter
+
+        response = requests.get(f"{API_BASE_URL}/api/erp/pending-items", params=params)
+        if response.status_code == 200:
+            data = response.json()
+            items = data.get("items", [])
+
+            if items:
+                st.caption(f"Showing {len(items)} of {data.get('total', 0)} items")
+
+                for item in items:
+                    result = item.get("result", {})
+                    tag_id = item.get("tag_id", "")
+                    expected_huid = item.get("expected_huid", "")
+                    actual_huid = result.get("actual_huid") if result else None
+                    confidence = result.get("confidence", 0) if result else 0
+                    current_decision = result.get("decision", "pending") if result else "pending"
+
+                    # Decision badge
+                    decision_class = {
+                        'approved': 'badge-success',
+                        'rejected': 'badge-danger',
+                        'manual_review': 'badge-warning',
+                    }.get(current_decision, 'badge-info')
+
+                    # Match status
+                    huid_match = result.get("huid_match") if result else None
+                    match_badge = ""
+                    if huid_match is True:
+                        match_badge = '<span class="badge badge-success">MATCH</span>'
+                    elif huid_match is False:
+                        match_badge = '<span class="badge badge-danger">MISMATCH</span>'
+
+                    # Confidence color
+                    if confidence >= 0.85:
+                        conf_color = "var(--success)"
+                    elif confidence >= 0.50:
+                        conf_color = "var(--warning)"
+                    else:
+                        conf_color = "var(--danger)"
+
+                    with st.expander(f"**{tag_id}** - {expected_huid} | {current_decision.replace('_', ' ').upper()}", expanded=False):
+                        col_img, col_details = st.columns([1, 2])
+
+                        with col_img:
+                            if item.get("image_url"):
+                                try:
+                                    st.image(item["image_url"], caption="Hallmark Image", use_container_width=True)
+                                except:
+                                    st.caption("Image not available")
+                            else:
+                                st.caption("No image uploaded")
+
+                        with col_details:
+                            st.markdown(f"""
+                            <div class="result-card" style="padding: 16px;">
+                                <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                                    {match_badge}
+                                    <span class="badge {decision_class}">{current_decision.replace('_', ' ').upper()}</span>
+                                </div>
+                                <div class="data-row">
+                                    <span class="data-label">Expected HUID</span>
+                                    <span class="data-value">{expected_huid}</span>
+                                </div>
+                                <div class="data-row">
+                                    <span class="data-label">Detected HUID</span>
+                                    <span class="data-value">{actual_huid or 'Not detected'}</span>
+                                </div>
+                                <div class="data-row">
+                                    <span class="data-label">Purity Code</span>
+                                    <span class="data-value">{result.get('purity_code') or '--'}</span>
+                                </div>
+                                <div class="data-row">
+                                    <span class="data-label">Confidence</span>
+                                    <span class="data-value" style="color: {conf_color};">{confidence*100:.1f}%</span>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: {confidence*100:.0f}%; background: {conf_color};"></div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                            # Rejection reasons
+                            rejection_reasons = result.get("rejection_reasons", []) if result else []
+                            if rejection_reasons:
+                                reason_labels = {
+                                    "missing_huid": "Missing HUID",
+                                    "missing_purity_mark": "Missing Purity",
+                                    "huid_mismatch": "HUID Mismatch",
+                                    "low_confidence": "Low Confidence",
+                                }
+                                reasons_text = ", ".join([reason_labels.get(r, r) for r in rejection_reasons])
+                                st.warning(f"Issues: {reasons_text}")
+
+                            # Manual decision buttons
+                            if current_decision == "manual_review":
+                                st.markdown("**Make Decision:**")
+                                btn_col1, btn_col2 = st.columns(2)
+
+                                with btn_col1:
+                                    if st.button("Approve", key=f"approve_{tag_id}", use_container_width=True):
+                                        try:
+                                            resp = requests.post(
+                                                f"{API_BASE_URL}/api/erp/manual-decision",
+                                                data={"tag_id": tag_id, "decision": "approved"}
+                                            )
+                                            if resp.status_code == 200:
+                                                st.success("Approved!")
+                                                st.rerun()
+                                            else:
+                                                st.error("Failed to update")
+                                        except Exception as e:
+                                            st.error(f"Error: {e}")
+
+                                with btn_col2:
+                                    if st.button("Reject", key=f"reject_{tag_id}", use_container_width=True):
+                                        try:
+                                            resp = requests.post(
+                                                f"{API_BASE_URL}/api/erp/manual-decision",
+                                                data={"tag_id": tag_id, "decision": "rejected"}
+                                            )
+                                            if resp.status_code == 200:
+                                                st.success("Rejected!")
+                                                st.rerun()
+                                            else:
+                                                st.error("Failed to update")
+                                        except Exception as e:
+                                            st.error(f"Error: {e}")
+
+            else:
+                st.markdown("""
+                <div class="empty-state">
+                    <div class="empty-icon">&#10004;</div>
+                    <div class="empty-title">All caught up!</div>
+                    <div class="empty-hint">No items pending review</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+    except Exception as e:
+        st.error(f"Could not load pending items: {e}")
+
+    st.markdown("---")
+
+    # Quick Test Section
+    st.markdown("**Quick Test: Upload & Process**")
+    st.caption("Test the ERP integration by uploading an image directly")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        test_tag_id = st.text_input("Tag ID", placeholder="e.g., TAG001", key="erp_test_tag")
+        test_huid = st.text_input("Expected HUID", placeholder="e.g., AB1234", key="erp_test_huid")
+
+    with col2:
+        test_image = st.file_uploader(
+            "Upload Image",
+            type=["png", "jpg", "jpeg"],
+            key="erp_test_image"
+        )
+
+    if test_image and test_tag_id and test_huid:
+        if st.button("Process", key="erp_test_process", use_container_width=True):
+            with st.spinner("Processing..."):
+                try:
+                    files = {"file": (test_image.name, test_image.getvalue(), test_image.type)}
+                    data = {
+                        "tag_id": test_tag_id,
+                        "expected_huid": test_huid
+                    }
+
+                    response = requests.post(
+                        f"{API_BASE_URL}/api/erp/upload-and-process",
+                        files=files,
+                        data=data
+                    )
+
+                    if response.status_code == 200:
+                        result = response.json()
+
+                        decision = result.get("decision", "pending")
+                        huid_match = result.get("huid_match", False)
+                        conf = result.get("confidence", 0)
+
+                        decision_class = {
+                            'approved': 'badge-success',
+                            'rejected': 'badge-danger',
+                            'manual_review': 'badge-warning',
+                        }.get(decision, 'badge-info')
+
+                        match_class = "badge-success" if huid_match else "badge-danger"
+                        match_text = "MATCH" if huid_match else "MISMATCH"
+
+                        st.markdown(f"""
+                        <div class="result-card">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 12px;">
+                                <span class="badge {match_class}">{match_text}</span>
+                                <span class="badge {decision_class}">{decision.replace('_', ' ').upper()}</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">Expected HUID</span>
+                                <span class="data-value">{result.get('expected_huid', '--')}</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">Detected HUID</span>
+                                <span class="data-value">{result.get('actual_huid') or 'Not detected'}</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">Purity</span>
+                                <span class="data-value">{result.get('purity_code') or '--'} ({result.get('karat') or '--'})</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">Confidence</span>
+                                <span class="data-value">{conf*100:.1f}%</span>
+                            </div>
+                            <div class="data-row">
+                                <span class="data-label">Processing Time</span>
+                                <span class="data-value">{result.get('processing_time_ms', 0)}ms</span>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                    else:
+                        st.error(f"Error: {response.json().get('detail', 'Processing failed')}")
+
+                except Exception as e:
+                    st.error(f"Error: {e}")
+
+
 def main():
     # Apply styles
     st.markdown(get_styles(), unsafe_allow_html=True)
@@ -1369,7 +1677,12 @@ def main():
         st.warning("API is not responding. Make sure the server is running on port 8000.")
 
     # Main tabs
-    tab1, tab2, tab3 = st.tabs(["Stage 1: Upload Data", "Stage 2: Process Images", "Stage 3: View Results"])
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "Stage 1: Upload Data",
+        "Stage 2: Process Images",
+        "Stage 3: View Results",
+        "ERP Monitor"
+    ])
 
     with tab1:
         render_stage1()
@@ -1379,6 +1692,9 @@ def main():
 
     with tab3:
         render_stage3()
+
+    with tab4:
+        render_erp_monitor()
 
 
 if __name__ == "__main__":

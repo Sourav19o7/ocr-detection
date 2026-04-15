@@ -924,6 +924,886 @@ async def validate_huid(huid: str = Form(...)):
     }
 
 
+# =============================================================================
+# ERP INTEGRATION ENDPOINTS
+# =============================================================================
+
+class ERPRegisterRequest(BaseModel):
+    """Request model for ERP image registration."""
+    tag_id: str
+    expected_huid: str
+    s3_key: str  # S3 object key where ERP uploaded the image
+    s3_bucket: Optional[str] = None  # Optional, defaults to configured bucket
+    callback_url: Optional[str] = None  # URL to call when processing completes
+    metadata: Optional[Dict] = None  # Additional metadata from ERP
+
+
+class ERPRegisterResponse(BaseModel):
+    """Response model for ERP image registration."""
+    status: str
+    tag_id: str
+    message: str
+    batch_id: Optional[int] = None
+    processing_status: str = "queued"
+
+
+class ERPCallbackPayload(BaseModel):
+    """Payload sent to ERP callback URL."""
+    tag_id: str
+    expected_huid: str
+    actual_huid: Optional[str]
+    huid_match: bool
+    confidence: float
+    decision: str
+    purity_code: Optional[str]
+    karat: Optional[str]
+    rejection_reasons: List[str]
+    image_url: Optional[str]
+    processed_at: str
+
+
+class S3EventNotification(BaseModel):
+    """S3 Event Notification structure."""
+    Records: Optional[List[Dict]] = None
+
+
+@app.post("/api/erp/register-item", response_model=ERPRegisterResponse)
+async def erp_register_item(request: ERPRegisterRequest):
+    """
+    ERP Integration: Register an item with expected HUID.
+
+    Call this endpoint BEFORE uploading the image to S3.
+    This creates the batch item record so the image can be processed.
+
+    Flow:
+    1. ERP calls this endpoint with tag_id and expected_huid
+    2. ERP uploads image to S3 using presigned URL or direct upload
+    3. ERP calls /api/erp/process-image to trigger OCR
+    4. OCR system processes and calls callback_url with results
+    """
+    try:
+        # Check if tag already exists
+        existing = db.get_batch_item_by_tag(request.tag_id)
+        if existing:
+            return ERPRegisterResponse(
+                status="exists",
+                tag_id=request.tag_id,
+                message="Tag ID already registered",
+                batch_id=existing.batch_id,
+                processing_status=existing.status.value if hasattr(existing.status, 'value') else str(existing.status)
+            )
+
+        # Create or get ERP batch (one batch per day for ERP items)
+        batch_name = f"ERP_{datetime.now().strftime('%Y%m%d')}"
+
+        # Try to find existing ERP batch for today
+        all_batches = db.get_all_batches()
+        erp_batch = None
+        for b in all_batches:
+            if b.batch_name == batch_name:
+                erp_batch = b
+                break
+
+        if not erp_batch:
+            # Create new batch
+            batch = Batch(
+                batch_name=batch_name,
+                total_items=0,
+                status="pending",
+                metadata={"source": "erp", "auto_created": True}
+            )
+            batch_id = db.create_batch(batch)
+        else:
+            batch_id = erp_batch.id
+
+        # Create batch item
+        item_metadata = {
+            "source": "erp",
+            "s3_key": request.s3_key,
+            "callback_url": request.callback_url,
+            **(request.metadata or {})
+        }
+
+        item = BatchItem(
+            batch_id=batch_id,
+            tag_id=request.tag_id.strip(),
+            expected_huid=request.expected_huid.strip().upper(),
+            status=ProcessingStatus.PENDING,
+            metadata=item_metadata
+        )
+        db.create_batch_item(item)
+
+        # Update batch count
+        db.update_batch_total(batch_id)
+
+        return ERPRegisterResponse(
+            status="success",
+            tag_id=request.tag_id,
+            message="Item registered successfully. Upload image to S3 and call /api/erp/process-image",
+            batch_id=batch_id,
+            processing_status="pending"
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
+
+
+@app.post("/api/erp/process-image")
+async def erp_process_image(
+    tag_id: str = Form(...),
+    s3_key: Optional[str] = Form(None),
+    s3_bucket: Optional[str] = Form(None)
+):
+    """
+    ERP Integration: Process an image that was uploaded to S3.
+
+    Call this after:
+    1. Registering the item with /api/erp/register-item
+    2. Uploading the image to S3
+
+    The system will:
+    1. Download the image from S3
+    2. Run OCR processing
+    3. Store results in database
+    4. Call the callback_url if provided during registration
+    """
+    # Get batch item
+    batch_item = db.get_batch_item_by_tag(tag_id)
+    if not batch_item:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Tag ID '{tag_id}' not found. Register it first with /api/erp/register-item"
+        )
+
+    # Get S3 key from item metadata or parameter
+    item_metadata = batch_item.metadata if isinstance(batch_item.metadata, dict) else {}
+    actual_s3_key = s3_key or item_metadata.get("s3_key")
+    actual_bucket = s3_bucket or os.getenv('S3_BUCKET_NAME')
+
+    if not actual_s3_key:
+        raise HTTPException(
+            status_code=400,
+            detail="S3 key not provided and not found in registration"
+        )
+
+    try:
+        start_time = time.time()
+
+        # Update status to processing
+        db.update_batch_item_status(tag_id, ProcessingStatus.PROCESSING)
+
+        # Download image from S3
+        s3 = get_s3_client()
+        try:
+            response = s3.get_object(Bucket=actual_bucket, Key=actual_s3_key)
+            image_data = response['Body'].read()
+        except ClientError as e:
+            db.update_batch_item_status(tag_id, ProcessingStatus.FAILED)
+            raise HTTPException(
+                status_code=404,
+                detail=f"Image not found in S3: {actual_s3_key}"
+            )
+
+        # Open and process image
+        image = Image.open(io.BytesIO(image_data))
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+
+        # Store image path and generate URL
+        image_url = f"https://{actual_bucket}.s3.{os.getenv('AWS_REGION', 'ap-south-1')}.amazonaws.com/{actual_s3_key}"
+        db.update_batch_item_image(tag_id, actual_s3_key, image_url)
+
+        # Process with OCR
+        hallmark_info = ocr_engine_v2.extract_with_hallmark_info(image)
+
+        # Extract actual HUID
+        actual_huid = hallmark_info.huid
+        expected_huid = batch_item.expected_huid
+
+        # Compare HUIDs
+        huid_match = False
+        if actual_huid and expected_huid:
+            huid_match = actual_huid.upper().strip() == expected_huid.upper().strip()
+
+        # Determine decision
+        decision = QCDecision.PENDING
+        rejection_reasons = []
+
+        purity_valid = hallmark_info.purity_code is not None
+        huid_valid = actual_huid is not None
+
+        if not purity_valid:
+            rejection_reasons.append("missing_purity_mark")
+        if not huid_valid:
+            rejection_reasons.append("missing_huid")
+        if actual_huid and not huid_match:
+            rejection_reasons.append("huid_mismatch")
+
+        # Decision logic
+        if purity_valid and huid_valid and huid_match:
+            if hallmark_info.overall_confidence >= 0.85:
+                decision = QCDecision.APPROVED
+            elif hallmark_info.overall_confidence >= 0.50:
+                decision = QCDecision.MANUAL_REVIEW
+            else:
+                decision = QCDecision.REJECTED
+                rejection_reasons.append("low_confidence")
+        elif purity_valid and huid_valid and not huid_match:
+            decision = QCDecision.REJECTED
+        else:
+            if hallmark_info.overall_confidence < 0.50:
+                decision = QCDecision.REJECTED
+            else:
+                decision = QCDecision.MANUAL_REVIEW
+
+        processing_time = int((time.time() - start_time) * 1000)
+
+        # Create OCR result record
+        ocr_result = DBOCRResult(
+            batch_item_id=batch_item.id,
+            tag_id=tag_id,
+            expected_huid=expected_huid,
+            actual_huid=actual_huid,
+            huid_match=huid_match,
+            purity_code=hallmark_info.purity_code,
+            karat=hallmark_info.karat,
+            purity_percentage=hallmark_info.purity_percentage,
+            confidence=hallmark_info.overall_confidence,
+            decision=decision,
+            rejection_reasons=rejection_reasons,
+            raw_ocr_text=" ".join([r.text for r in hallmark_info.all_results]),
+            processing_time_ms=processing_time,
+        )
+        db.create_ocr_result(ocr_result)
+
+        # Update batch item status
+        db.update_batch_item_status(tag_id, ProcessingStatus.COMPLETED)
+
+        # Update batch progress
+        batch = db.get_batch(batch_item.batch_id)
+        if batch:
+            db.update_batch_progress(batch.id, batch.processed_items + 1)
+
+        result_data = {
+            "status": "success",
+            "tag_id": tag_id,
+            "expected_huid": expected_huid,
+            "actual_huid": actual_huid,
+            "huid_match": huid_match,
+            "confidence": round(hallmark_info.overall_confidence, 3),
+            "decision": decision.value,
+            "purity_code": hallmark_info.purity_code,
+            "karat": hallmark_info.karat,
+            "rejection_reasons": rejection_reasons,
+            "image_url": image_url,
+            "processing_time_ms": processing_time
+        }
+
+        # Send callback to ERP if URL provided
+        callback_url = item_metadata.get("callback_url")
+        if callback_url:
+            try:
+                import httpx
+                callback_payload = {
+                    "tag_id": tag_id,
+                    "expected_huid": expected_huid,
+                    "actual_huid": actual_huid,
+                    "huid_match": huid_match,
+                    "confidence": hallmark_info.overall_confidence,
+                    "decision": decision.value,
+                    "purity_code": hallmark_info.purity_code,
+                    "karat": hallmark_info.karat,
+                    "rejection_reasons": rejection_reasons,
+                    "image_url": image_url,
+                    "processed_at": datetime.now().isoformat()
+                }
+                # Fire and forget - don't block on callback
+                async with httpx.AsyncClient() as client:
+                    await client.post(callback_url, json=callback_payload, timeout=10.0)
+            except Exception as e:
+                # Log but don't fail the request
+                print(f"Callback to {callback_url} failed: {e}")
+
+        return result_data
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.update_batch_item_status(tag_id, ProcessingStatus.FAILED)
+        raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
+
+
+@app.post("/api/erp/upload-and-process")
+async def erp_upload_and_process(
+    file: UploadFile = File(...),
+    tag_id: str = Form(...),
+    expected_huid: str = Form(...),
+    callback_url: Optional[str] = Form(None),
+    metadata: Optional[str] = Form(None)  # JSON string
+):
+    """
+    ERP Integration: Single endpoint to upload image and process in one call.
+
+    This is a convenience endpoint that combines:
+    1. Registration
+    2. Image upload to S3
+    3. OCR processing
+
+    Use this for simpler integration where you want to send the image directly
+    to this API instead of uploading to S3 first.
+    """
+    import json
+
+    # Validate file type
+    allowed_types = ["image/png", "image/jpeg", "image/jpg", "image/bmp", "image/webp"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid file type. Allowed: PNG, JPG, JPEG, BMP, WEBP"
+        )
+
+    try:
+        # Parse metadata if provided
+        parsed_metadata = {}
+        if metadata:
+            try:
+                parsed_metadata = json.loads(metadata)
+            except:
+                pass
+
+        # Check if tag already exists and has results
+        existing = db.get_batch_item_by_tag(tag_id)
+        if existing:
+            existing_result = db.get_full_result_by_tag(tag_id)
+            if existing_result and existing_result.get("decision"):
+                return {
+                    "status": "already_processed",
+                    "tag_id": tag_id,
+                    "message": "This tag has already been processed",
+                    **existing_result
+                }
+
+        start_time = time.time()
+
+        # Read and validate image
+        contents = await file.read()
+        image = Image.open(io.BytesIO(contents))
+        if image.mode != "RGB":
+            image = image.convert("RGB")
+
+        # Create or get ERP batch
+        batch_name = f"ERP_{datetime.now().strftime('%Y%m%d')}"
+        all_batches = db.get_all_batches()
+        erp_batch = None
+        for b in all_batches:
+            if b.batch_name == batch_name:
+                erp_batch = b
+                break
+
+        if not erp_batch:
+            batch = Batch(
+                batch_name=batch_name,
+                total_items=0,
+                status="pending",
+                metadata={"source": "erp", "auto_created": True}
+            )
+            batch_id = db.create_batch(batch)
+        else:
+            batch_id = erp_batch.id
+
+        # Create batch item if doesn't exist
+        if not existing:
+            item_metadata = {
+                "source": "erp_direct",
+                "callback_url": callback_url,
+                **parsed_metadata
+            }
+            item = BatchItem(
+                batch_id=batch_id,
+                tag_id=tag_id.strip(),
+                expected_huid=expected_huid.strip().upper(),
+                status=ProcessingStatus.PROCESSING,
+                metadata=item_metadata
+            )
+            item_id = db.create_batch_item(item)
+            db.update_batch_total(batch_id)
+            batch_item = db.get_batch_item_by_tag(tag_id)
+        else:
+            batch_item = existing
+            db.update_batch_item_status(tag_id, ProcessingStatus.PROCESSING)
+
+        # Upload to S3
+        image_path, image_url = storage.upload_image(
+            contents,
+            tag_id,
+            file.filename,
+            prefix="erp-uploads"
+        )
+        db.update_batch_item_image(tag_id, image_path, image_url)
+
+        # Process with OCR
+        hallmark_info = ocr_engine_v2.extract_with_hallmark_info(image)
+
+        actual_huid = hallmark_info.huid
+        expected_huid_clean = expected_huid.strip().upper()
+
+        huid_match = False
+        if actual_huid and expected_huid_clean:
+            huid_match = actual_huid.upper().strip() == expected_huid_clean
+
+        # Decision logic
+        decision = QCDecision.PENDING
+        rejection_reasons = []
+
+        purity_valid = hallmark_info.purity_code is not None
+        huid_valid = actual_huid is not None
+
+        if not purity_valid:
+            rejection_reasons.append("missing_purity_mark")
+        if not huid_valid:
+            rejection_reasons.append("missing_huid")
+        if actual_huid and not huid_match:
+            rejection_reasons.append("huid_mismatch")
+
+        if purity_valid and huid_valid and huid_match:
+            if hallmark_info.overall_confidence >= 0.85:
+                decision = QCDecision.APPROVED
+            elif hallmark_info.overall_confidence >= 0.50:
+                decision = QCDecision.MANUAL_REVIEW
+            else:
+                decision = QCDecision.REJECTED
+                rejection_reasons.append("low_confidence")
+        elif purity_valid and huid_valid and not huid_match:
+            decision = QCDecision.REJECTED
+        else:
+            if hallmark_info.overall_confidence < 0.50:
+                decision = QCDecision.REJECTED
+            else:
+                decision = QCDecision.MANUAL_REVIEW
+
+        processing_time = int((time.time() - start_time) * 1000)
+
+        # Create OCR result
+        ocr_result = DBOCRResult(
+            batch_item_id=batch_item.id,
+            tag_id=tag_id,
+            expected_huid=expected_huid_clean,
+            actual_huid=actual_huid,
+            huid_match=huid_match,
+            purity_code=hallmark_info.purity_code,
+            karat=hallmark_info.karat,
+            purity_percentage=hallmark_info.purity_percentage,
+            confidence=hallmark_info.overall_confidence,
+            decision=decision,
+            rejection_reasons=rejection_reasons,
+            raw_ocr_text=" ".join([r.text for r in hallmark_info.all_results]),
+            processing_time_ms=processing_time,
+        )
+        db.create_ocr_result(ocr_result)
+
+        db.update_batch_item_status(tag_id, ProcessingStatus.COMPLETED)
+
+        batch = db.get_batch(batch_item.batch_id)
+        if batch:
+            db.update_batch_progress(batch.id, batch.processed_items + 1)
+
+        result_data = {
+            "status": "success",
+            "tag_id": tag_id,
+            "expected_huid": expected_huid_clean,
+            "actual_huid": actual_huid,
+            "huid_match": huid_match,
+            "confidence": round(hallmark_info.overall_confidence, 3),
+            "decision": decision.value,
+            "purity_code": hallmark_info.purity_code,
+            "karat": hallmark_info.karat,
+            "purity_percentage": hallmark_info.purity_percentage,
+            "rejection_reasons": rejection_reasons,
+            "image_url": image_url,
+            "processing_time_ms": processing_time,
+            "message": "Image processed successfully"
+        }
+
+        # Send callback if provided
+        if callback_url:
+            try:
+                import httpx
+                callback_payload = {
+                    **result_data,
+                    "processed_at": datetime.now().isoformat()
+                }
+                async with httpx.AsyncClient() as client:
+                    await client.post(callback_url, json=callback_payload, timeout=10.0)
+            except Exception as e:
+                print(f"Callback to {callback_url} failed: {e}")
+
+        return result_data
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.update_batch_item_status(tag_id, ProcessingStatus.FAILED)
+        raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
+
+
+@app.post("/api/erp/s3-webhook")
+async def erp_s3_webhook(request: Request):
+    """
+    S3 Event Notification Webhook.
+
+    Configure S3 bucket to send event notifications to this endpoint
+    when images are uploaded. The system will automatically process them.
+
+    S3 Event Configuration:
+    - Event type: s3:ObjectCreated:*
+    - Destination: HTTP endpoint (this URL)
+    - Prefix filter: erp-images/ (optional)
+
+    Expected S3 key format: erp-images/{tag_id}_{expected_huid}.jpg
+    Example: erp-images/TAG001_AB1234.jpg
+    """
+    try:
+        body = await request.json()
+
+        # Handle SNS subscription confirmation
+        if body.get("Type") == "SubscriptionConfirmation":
+            # Auto-confirm SNS subscription
+            subscribe_url = body.get("SubscribeURL")
+            if subscribe_url:
+                import httpx
+                async with httpx.AsyncClient() as client:
+                    await client.get(subscribe_url)
+            return {"status": "subscription_confirmed"}
+
+        # Handle SNS notification wrapper
+        if body.get("Type") == "Notification":
+            import json
+            body = json.loads(body.get("Message", "{}"))
+
+        records = body.get("Records", [])
+        results = []
+
+        for record in records:
+            event_name = record.get("eventName", "")
+            if not event_name.startswith("ObjectCreated"):
+                continue
+
+            s3_info = record.get("s3", {})
+            bucket = s3_info.get("bucket", {}).get("name")
+            key = s3_info.get("object", {}).get("key")
+
+            if not key:
+                continue
+
+            # Parse tag_id and expected_huid from key
+            # Expected format: prefix/TAG001_AB1234.jpg
+            import urllib.parse
+            key = urllib.parse.unquote_plus(key)
+
+            filename = key.split("/")[-1]
+            name_part = filename.rsplit(".", 1)[0]  # Remove extension
+
+            parts = name_part.split("_", 1)
+            if len(parts) != 2:
+                results.append({
+                    "key": key,
+                    "status": "skipped",
+                    "reason": "Invalid filename format. Expected: TAG_HUID.ext"
+                })
+                continue
+
+            tag_id, expected_huid = parts
+
+            # Check if already processed
+            existing = db.get_batch_item_by_tag(tag_id)
+            if existing:
+                existing_result = db.get_full_result_by_tag(tag_id)
+                if existing_result and existing_result.get("decision"):
+                    results.append({
+                        "tag_id": tag_id,
+                        "status": "already_processed",
+                        "decision": existing_result.get("decision")
+                    })
+                    continue
+
+            # Register and process
+            try:
+                # Create ERP batch
+                batch_name = f"ERP_S3_{datetime.now().strftime('%Y%m%d')}"
+                all_batches = db.get_all_batches()
+                erp_batch = None
+                for b in all_batches:
+                    if b.batch_name == batch_name:
+                        erp_batch = b
+                        break
+
+                if not erp_batch:
+                    batch = Batch(
+                        batch_name=batch_name,
+                        total_items=0,
+                        status="pending",
+                        metadata={"source": "s3_webhook"}
+                    )
+                    batch_id = db.create_batch(batch)
+                else:
+                    batch_id = erp_batch.id
+
+                # Create batch item
+                if not existing:
+                    item = BatchItem(
+                        batch_id=batch_id,
+                        tag_id=tag_id,
+                        expected_huid=expected_huid.upper(),
+                        status=ProcessingStatus.PROCESSING,
+                        metadata={"source": "s3_webhook", "s3_key": key}
+                    )
+                    db.create_batch_item(item)
+                    db.update_batch_total(batch_id)
+
+                batch_item = db.get_batch_item_by_tag(tag_id)
+
+                # Download and process image
+                s3 = get_s3_client()
+                response = s3.get_object(Bucket=bucket, Key=key)
+                image_data = response['Body'].read()
+
+                image = Image.open(io.BytesIO(image_data))
+                if image.mode != "RGB":
+                    image = image.convert("RGB")
+
+                image_url = f"https://{bucket}.s3.{os.getenv('AWS_REGION', 'ap-south-1')}.amazonaws.com/{key}"
+                db.update_batch_item_image(tag_id, key, image_url)
+
+                hallmark_info = ocr_engine_v2.extract_with_hallmark_info(image)
+
+                actual_huid = hallmark_info.huid
+                huid_match = actual_huid and actual_huid.upper() == expected_huid.upper()
+
+                # Decision logic
+                rejection_reasons = []
+                if not hallmark_info.purity_code:
+                    rejection_reasons.append("missing_purity_mark")
+                if not actual_huid:
+                    rejection_reasons.append("missing_huid")
+                if actual_huid and not huid_match:
+                    rejection_reasons.append("huid_mismatch")
+
+                if hallmark_info.purity_code and actual_huid and huid_match:
+                    if hallmark_info.overall_confidence >= 0.85:
+                        decision = QCDecision.APPROVED
+                    elif hallmark_info.overall_confidence >= 0.50:
+                        decision = QCDecision.MANUAL_REVIEW
+                    else:
+                        decision = QCDecision.REJECTED
+                        rejection_reasons.append("low_confidence")
+                elif hallmark_info.purity_code and actual_huid and not huid_match:
+                    decision = QCDecision.REJECTED
+                else:
+                    decision = QCDecision.MANUAL_REVIEW if hallmark_info.overall_confidence >= 0.50 else QCDecision.REJECTED
+
+                ocr_result = DBOCRResult(
+                    batch_item_id=batch_item.id,
+                    tag_id=tag_id,
+                    expected_huid=expected_huid.upper(),
+                    actual_huid=actual_huid,
+                    huid_match=huid_match,
+                    purity_code=hallmark_info.purity_code,
+                    karat=hallmark_info.karat,
+                    purity_percentage=hallmark_info.purity_percentage,
+                    confidence=hallmark_info.overall_confidence,
+                    decision=decision,
+                    rejection_reasons=rejection_reasons,
+                    raw_ocr_text=" ".join([r.text for r in hallmark_info.all_results]),
+                )
+                db.create_ocr_result(ocr_result)
+                db.update_batch_item_status(tag_id, ProcessingStatus.COMPLETED)
+
+                results.append({
+                    "tag_id": tag_id,
+                    "status": "processed",
+                    "decision": decision.value,
+                    "huid_match": huid_match,
+                    "confidence": hallmark_info.overall_confidence
+                })
+
+            except Exception as e:
+                results.append({
+                    "tag_id": tag_id,
+                    "status": "error",
+                    "error": str(e)
+                })
+
+        return {"status": "success", "processed": len(results), "results": results}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Webhook processing failed: {str(e)}")
+
+
+@app.get("/api/erp/pending-items")
+async def get_erp_pending_items(
+    limit: int = Query(100, le=500),
+    offset: int = Query(0),
+    decision: Optional[str] = Query(None, description="Filter by decision: manual_review, pending")
+):
+    """
+    Get items pending review or action.
+
+    Useful for dashboard to show items needing attention.
+    """
+    # Get all pending items from today's ERP batches
+    all_batches = db.get_all_batches()
+    erp_batches = [b for b in all_batches if b.batch_name.startswith("ERP_")]
+
+    pending_items = []
+    for batch in erp_batches:
+        items = db.get_batch_items(batch.id)
+        for item in items:
+            result = db.get_full_result_by_tag(item.tag_id)
+
+            # Filter by decision if specified
+            item_decision = result.get("decision") if result else None
+            if decision:
+                if item_decision != decision:
+                    continue
+            else:
+                # By default, show manual_review and pending
+                if item_decision not in [None, "manual_review", "pending"]:
+                    continue
+
+            pending_items.append({
+                "tag_id": item.tag_id,
+                "expected_huid": item.expected_huid,
+                "batch_name": batch.batch_name,
+                "status": item.status.value if hasattr(item.status, 'value') else str(item.status),
+                "image_url": item.image_url,
+                "result": result
+            })
+
+    # Apply pagination
+    total = len(pending_items)
+    pending_items = pending_items[offset:offset + limit]
+
+    return {
+        "status": "success",
+        "total": total,
+        "offset": offset,
+        "limit": limit,
+        "items": pending_items
+    }
+
+
+@app.post("/api/erp/manual-decision")
+async def set_manual_decision(
+    tag_id: str = Form(...),
+    decision: str = Form(..., description="approved, rejected"),
+    reason: Optional[str] = Form(None),
+    reviewer: Optional[str] = Form(None)
+):
+    """
+    Manually set a decision for an item (from QC dashboard).
+
+    Used when items are in manual_review status and need human decision.
+    """
+    valid_decisions = ["approved", "rejected"]
+    if decision not in valid_decisions:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid decision. Must be one of: {valid_decisions}"
+        )
+
+    batch_item = db.get_batch_item_by_tag(tag_id)
+    if not batch_item:
+        raise HTTPException(status_code=404, detail="Tag ID not found")
+
+    # Update the OCR result with manual decision
+    result = db.get_full_result_by_tag(tag_id)
+    if not result:
+        raise HTTPException(status_code=404, detail="No OCR result found for this tag")
+
+    # Update decision in database
+    new_decision = QCDecision.APPROVED if decision == "approved" else QCDecision.REJECTED
+
+    rejection_reasons = result.get("rejection_reasons", [])
+    if decision == "rejected" and reason:
+        rejection_reasons.append(f"manual: {reason}")
+
+    db.update_ocr_result_decision(
+        tag_id=tag_id,
+        decision=new_decision,
+        rejection_reasons=rejection_reasons,
+        reviewer=reviewer
+    )
+
+    # Get updated result
+    updated_result = db.get_full_result_by_tag(tag_id)
+
+    return {
+        "status": "success",
+        "tag_id": tag_id,
+        "decision": decision,
+        "message": f"Decision updated to {decision}",
+        "result": updated_result
+    }
+
+
+@app.get("/api/erp/statistics")
+async def get_erp_statistics(
+    date: Optional[str] = Query(None, description="Date in YYYY-MM-DD format")
+):
+    """
+    Get ERP processing statistics.
+
+    Returns summary of items processed, decisions, and accuracy metrics.
+    """
+    target_date = date or datetime.now().strftime('%Y%m%d')
+    batch_prefix = f"ERP_{target_date.replace('-', '')}"
+
+    all_batches = db.get_all_batches()
+    erp_batches = [b for b in all_batches if b.batch_name.startswith(batch_prefix)]
+
+    stats = {
+        "date": target_date,
+        "total_items": 0,
+        "processed": 0,
+        "pending": 0,
+        "approved": 0,
+        "rejected": 0,
+        "manual_review": 0,
+        "huid_matches": 0,
+        "huid_mismatches": 0,
+        "average_confidence": 0.0,
+        "batches": []
+    }
+
+    all_confidences = []
+
+    for batch in erp_batches:
+        batch_stats = db.get_batch_statistics(batch.id)
+        stats["total_items"] += batch.total_items
+        stats["processed"] += batch_stats.get("status_counts", {}).get("completed", 0)
+        stats["pending"] += batch_stats.get("status_counts", {}).get("pending", 0)
+        stats["approved"] += batch_stats.get("decision_counts", {}).get("approved", 0)
+        stats["rejected"] += batch_stats.get("decision_counts", {}).get("rejected", 0)
+        stats["manual_review"] += batch_stats.get("decision_counts", {}).get("manual_review", 0)
+        stats["huid_matches"] += batch_stats.get("huid_matches", 0)
+        stats["huid_mismatches"] += batch_stats.get("huid_mismatches", 0)
+
+        if batch_stats.get("average_confidence"):
+            all_confidences.append(batch_stats["average_confidence"])
+
+        stats["batches"].append({
+            "batch_id": batch.id,
+            "batch_name": batch.batch_name,
+            "total_items": batch.total_items,
+            "processed_items": batch.processed_items
+        })
+
+    if all_confidences:
+        stats["average_confidence"] = round(sum(all_confidences) / len(all_confidences), 3)
+
+    return stats
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

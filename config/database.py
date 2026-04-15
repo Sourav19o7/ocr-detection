@@ -573,6 +573,15 @@ class DatabaseManager:
         """, (batch_id,))
         match_counts = {row["huid_match"]: row["count"] for row in cursor.fetchall()}
 
+        # Average confidence
+        cursor.execute("""
+            SELECT AVG(confidence) as avg_conf
+            FROM ocr_results
+            WHERE batch_item_id IN (SELECT id FROM batch_items WHERE batch_id = ?)
+        """, (batch_id,))
+        avg_conf_row = cursor.fetchone()
+        avg_confidence = avg_conf_row["avg_conf"] if avg_conf_row and avg_conf_row["avg_conf"] else 0.0
+
         conn.close()
 
         return {
@@ -581,7 +590,59 @@ class DatabaseManager:
             "decision_counts": decision_counts,
             "huid_matches": match_counts.get(1, 0),
             "huid_mismatches": match_counts.get(0, 0),
+            "average_confidence": avg_confidence,
         }
+
+    def update_batch_total(self, batch_id: int):
+        """Update batch total_items count based on actual items."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """UPDATE batches SET total_items = (
+                SELECT COUNT(*) FROM batch_items WHERE batch_id = ?
+            ) WHERE id = ?""",
+            (batch_id, batch_id)
+        )
+        conn.commit()
+        conn.close()
+
+    def update_ocr_result_decision(
+        self,
+        tag_id: str,
+        decision: 'QCDecision',
+        rejection_reasons: List[str] = None,
+        reviewer: Optional[str] = None
+    ):
+        """Update the decision for an OCR result (for manual review)."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+
+        # Get current metadata
+        cursor.execute(
+            "SELECT metadata FROM ocr_results WHERE tag_id = ? ORDER BY created_at DESC LIMIT 1",
+            (tag_id,)
+        )
+        row = cursor.fetchone()
+        metadata = json.loads(row["metadata"] or "{}") if row else {}
+
+        # Add reviewer info
+        if reviewer:
+            metadata["reviewer"] = reviewer
+            metadata["reviewed_at"] = datetime.now().isoformat()
+
+        cursor.execute(
+            """UPDATE ocr_results
+               SET decision = ?, rejection_reasons = ?, metadata = ?
+               WHERE tag_id = ?""",
+            (
+                decision.value if hasattr(decision, 'value') else decision,
+                json.dumps(rejection_reasons or []),
+                json.dumps(metadata),
+                tag_id
+            )
+        )
+        conn.commit()
+        conn.close()
 
 
 # Global database instance
