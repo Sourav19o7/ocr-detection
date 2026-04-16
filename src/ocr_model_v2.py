@@ -4,6 +4,7 @@ Enhanced version with image preprocessing, hallmark pattern recognition,
 and BIS standard validation.
 """
 
+import os
 import sys
 import re
 import cv2
@@ -12,6 +13,11 @@ from PIL import Image
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Tuple
 from enum import Enum
+
+# Fix for PaddlePaddle PIR executor compatibility issue on some systems
+# Must be set BEFORE importing paddleocr/paddle
+os.environ.setdefault("FLAGS_enable_pir_api", "0")
+os.environ.setdefault("FLAGS_enable_pir_in_executor", "0")
 
 # Cache the PaddleOCR module to prevent reinitialization errors with Streamlit
 if "paddleocr" not in sys.modules:

@@ -9,6 +9,14 @@ Three-Stage Workflow:
 Deploy on AWS or run locally with: uvicorn api:app --host 0.0.0.0 --port 8000
 """
 
+import os
+import sys
+
+# Fix for PaddlePaddle PIR executor compatibility issue
+# Must be set BEFORE importing any paddle modules
+os.environ.setdefault("FLAGS_enable_pir_api", "0")
+os.environ.setdefault("FLAGS_enable_pir_in_executor", "0")
+
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form, Query, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -19,8 +27,6 @@ from PIL import Image
 from datetime import datetime
 from starlette.middleware.sessions import SessionMiddleware
 import io
-import sys
-import os
 import time
 import pandas as pd
 import boto3
@@ -101,6 +107,45 @@ ocr_engine = None
 ocr_engine_v2 = None
 db: DatabaseManager = None
 storage: StorageService = None
+
+
+def compare_huids(actual_huid: str, expected_huid: str) -> bool:
+    """
+    Compare HUIDs flexibly - handles cases where expected_huid contains
+    full hallmark text (e.g., '22K91677WAX9') and actual_huid is just
+    the 6-character HUID (e.g., '77WAX9').
+    """
+    if not actual_huid or not expected_huid:
+        return False
+
+    actual = actual_huid.upper().strip()
+    expected = expected_huid.upper().strip()
+
+    # Exact match
+    if actual == expected:
+        return True
+
+    # Check if actual HUID is contained at the end of expected (common case)
+    # e.g., expected='22K91677WAX9', actual='77WAX9'
+    if expected.endswith(actual):
+        return True
+
+    # Check if actual HUID is contained anywhere in expected
+    if actual in expected:
+        return True
+
+    # Extract 6-char alphanumeric sequences from expected and compare
+    import re
+    expected_huids = re.findall(r'[A-Z0-9]{6}', expected)
+    for exp_huid in expected_huids:
+        # Skip pure numeric (likely purity codes like 916)
+        if exp_huid.isdigit():
+            continue
+        if exp_huid == actual:
+            return True
+
+    return False
+
 
 # S3 Client for presigned URLs
 s3_client = None
@@ -314,8 +359,8 @@ async def upload_batch(
         required_columns = ["tag_id", "expected_huid"]
         # Also check for common variations
         column_mappings = {
-            "tag_id": ["tag_id", "tagid", "tag", "id", "item_id"],
-            "expected_huid": ["expected_huid", "huid", "expected_id", "expectedhuid"]
+            "tag_id": ["tag_id", "tagid", "tag", "id", "item_id", "ahc_tag", "ahc_tag_id"],
+            "expected_huid": ["expected_huid", "huid", "expected_id", "expectedhuid", "laser_printing_mark", "laser_print", "laser_mark"]
         }
 
         for req_col, variations in column_mappings.items():
@@ -464,10 +509,8 @@ async def upload_and_process_image(
         actual_huid = hallmark_info.huid
         expected_huid = batch_item.expected_huid
 
-        # Compare HUIDs
-        huid_match = False
-        if actual_huid and expected_huid:
-            huid_match = actual_huid.upper().strip() == expected_huid.upper().strip()
+        # Compare HUIDs (flexible matching)
+        huid_match = compare_huids(actual_huid, expected_huid)
 
         # Determine decision
         decision = QCDecision.PENDING
@@ -601,10 +644,7 @@ async def upload_images_bulk(
             # Process OCR
             hallmark_info = ocr_engine_v2.extract_with_hallmark_info(image)
             actual_huid = hallmark_info.huid
-            huid_match = (
-                actual_huid and
-                actual_huid.upper().strip() == batch_item.expected_huid.upper().strip()
-            )
+            huid_match = compare_huids(actual_huid, batch_item.expected_huid)
 
             # Simple decision
             if hallmark_info.overall_confidence >= 0.85 and huid_match:
@@ -1170,10 +1210,8 @@ async def erp_process_image(
         actual_huid = hallmark_info.huid
         expected_huid = batch_item.expected_huid
 
-        # Compare HUIDs
-        huid_match = False
-        if actual_huid and expected_huid:
-            huid_match = actual_huid.upper().strip() == expected_huid.upper().strip()
+        # Compare HUIDs (flexible matching)
+        huid_match = compare_huids(actual_huid, expected_huid)
 
         # Determine decision
         decision = QCDecision.PENDING
@@ -1397,9 +1435,7 @@ async def erp_upload_and_process(
         actual_huid = hallmark_info.huid
         expected_huid_clean = expected_huid.strip().upper()
 
-        huid_match = False
-        if actual_huid and expected_huid_clean:
-            huid_match = actual_huid.upper().strip() == expected_huid_clean
+        huid_match = compare_huids(actual_huid, expected_huid_clean)
 
         # Decision logic
         decision = QCDecision.PENDING
@@ -1627,7 +1663,7 @@ async def erp_s3_webhook(request: Request):
                 hallmark_info = ocr_engine_v2.extract_with_hallmark_info(image)
 
                 actual_huid = hallmark_info.huid
-                huid_match = actual_huid and actual_huid.upper() == expected_huid.upper()
+                huid_match = compare_huids(actual_huid, expected_huid)
 
                 # Decision logic
                 rejection_reasons = []

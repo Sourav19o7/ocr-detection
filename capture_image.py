@@ -30,7 +30,7 @@ LOGO_FILE = "bac_logo.png"
 TRAY_ICON_FILE = "tray.ico"
 APP_NAME = "LaserCapture"
 
-# OCR Upload API - ERP Integration endpoint
+# OCR Upload API - ERP Integration endpoint (Live URL)
 OCR_API_BASE = "http://65.2.187.3:8000"
 OCR_UPLOAD_API = f"{OCR_API_BASE}/api/erp/upload-and-process"
 # ==========================================
@@ -405,7 +405,7 @@ def save_image(cap, expected_huid: str = ""):
 
     folder = today_folder()
     ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-    tag_id = f"TAG_{ts}"
+    tag_id = "26M1169838"
     filepath = os.path.join(folder, f"{tag_id}.jpg")
 
     cv2.imwrite(filepath, frame, [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY])

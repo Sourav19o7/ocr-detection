@@ -1,11 +1,15 @@
 """
-Hallmark QC Dashboard - Modern Three-Stage Workflow.
+Hallmark QC Dashboard - Premium Obsidian Luxe Edition.
 
-A clean, minimal Streamlit dashboard with:
+An ultra-premium dark mode dashboard featuring:
+- Obsidian black with luminous gold/amber jewelry-inspired accents
+- Sophisticated glassmorphism with volcanic glass effects
+- Syne + Outfit typography for luxury brand feel
+- Micro-animations and premium interactions
 - Stage 1: Upload CSV/Excel with tag IDs and expected HUIDs
 - Stage 2: Upload images for processing
 - Stage 3: View and search results
-- Dark/Light mode toggle
+- ERP Integration Monitor
 """
 
 import streamlit as st
@@ -21,92 +25,241 @@ import os
 # Get API URL from environment or use default
 API_BASE_URL = os.getenv("API_BASE_URL", "http://localhost:8000")
 
+
+def get_full_image_url(image_url: str) -> str:
+    """Convert relative image URLs to full URLs for display."""
+    if not image_url:
+        return None
+    # If it's already a full URL (http/https), return as-is
+    if image_url.startswith("http://") or image_url.startswith("https://"):
+        return image_url
+    # If it's a relative path starting with /, prepend the API base URL
+    if image_url.startswith("/"):
+        return f"{API_BASE_URL}{image_url}"
+    return image_url
+
+
+def fetch_image_bytes(image_url: str):
+    """Fetch image from URL and return bytes for Streamlit display."""
+    if not image_url:
+        return None
+    full_url = get_full_image_url(image_url)
+    if not full_url:
+        return None
+    try:
+        response = requests.get(full_url, timeout=10)
+        if response.status_code == 200:
+            return io.BytesIO(response.content)
+    except:
+        pass
+    return None
+
 # Page config
 st.set_page_config(
-    page_title="Hallmark QC",
-    page_icon="",
+    page_title="Hallmark QC | Premium",
+    page_icon="💎",
     layout="wide",
     initial_sidebar_state="collapsed"
 )
 
-# Initialize theme in session state
+# Initialize theme in session state - Default to dark (premium mode)
 if "theme" not in st.session_state:
-    st.session_state.theme = "light"
+    st.session_state.theme = "dark"
 
 def toggle_theme():
     st.session_state.theme = "dark" if st.session_state.theme == "light" else "light"
 
 
-# CSS with dark/light mode support
+# CSS - OBSIDIAN LUXE PREMIUM REDESIGN
 def get_styles():
     is_dark = st.session_state.theme == "dark"
 
     if is_dark:
-        bg_primary = "#0A0A0F"
-        bg_secondary = "#13131A"
-        bg_card = "#1A1A24"
-        bg_input = "#20202E"
-        border_color = "#2A2A38"
-        border_light = "#1F1F2C"
-        text_primary = "#F5F5F7"
-        text_secondary = "#B4B4BC"
-        text_muted = "#6E6E7A"
-        accent = "#6366F1"
-        accent_hover = "#818CF8"
-        success = "#059669"
-        danger = "#DC2626"
-        warning = "#D97706"
+        # OBSIDIAN LUXE - Volcanic Black with Luminous Gold
+        bg_primary = "#09090B"           # True obsidian black
+        bg_secondary = "#0C0C0F"         # Slightly elevated black
+        bg_card = "#111114"              # Card surface - volcanic glass
+        bg_input = "#16161A"             # Input fields - charcoal
+        bg_elevated = "#1A1A1F"          # Elevated surfaces
+        border_color = "#27272A"         # Zinc borders
+        border_light = "#1E1E22"         # Subtle borders
+        border_glow = "#D4AF37"          # Gold glow border
+        text_primary = "#FAFAFA"         # Pure white text
+        text_secondary = "#A1A1AA"       # Zinc-400
+        text_muted = "#71717A"           # Zinc-500
+        accent = "#D4AF37"               # Luxurious gold
+        accent_hover = "#F5D061"         # Bright gold hover
+        accent_secondary = "#B8860B"     # Dark goldenrod
+        accent_glow = "rgba(212, 175, 55, 0.35)"
+        accent_glow_strong = "rgba(212, 175, 55, 0.5)"
+        success = "#22C55E"              # Emerald success
+        success_glow = "rgba(34, 197, 94, 0.25)"
+        danger = "#EF4444"               # Ruby red
+        danger_glow = "rgba(239, 68, 68, 0.25)"
+        warning = "#F59E0B"              # Amber warning
+        warning_glow = "rgba(245, 158, 11, 0.25)"
+        info = "#38BDF8"                 # Sky blue info
+        info_glow = "rgba(56, 189, 248, 0.25)"
+        gradient_start = "#D4AF37"
+        gradient_end = "#B8860B"
     else:
-        bg_primary = "#F8F9FA"
-        bg_secondary = "#FFFFFF"
+        # IVORY LUXE - Cream with Gold Accents (Light mode alternative)
+        bg_primary = "#FFFEF9"
+        bg_secondary = "#FDFCF7"
         bg_card = "#FFFFFF"
-        bg_input = "#F1F3F5"
-        border_color = "#DEE2E6"
-        border_light = "#E9ECEF"
-        text_primary = "#0A0A0F"
-        text_secondary = "#495057"
-        text_muted = "#868E96"
-        accent = "#6366F1"
-        accent_hover = "#4F46E5"
-        success = "#059669"
+        bg_input = "#F8F7F2"
+        bg_elevated = "#FFFFFF"
+        border_color = "#E8E4D9"
+        border_light = "#F0EDE5"
+        border_glow = "#D4AF37"
+        text_primary = "#18181B"
+        text_secondary = "#52525B"
+        text_muted = "#71717A"
+        accent = "#B8860B"
+        accent_hover = "#D4AF37"
+        accent_secondary = "#996515"
+        accent_glow = "rgba(184, 134, 11, 0.2)"
+        accent_glow_strong = "rgba(184, 134, 11, 0.35)"
+        success = "#16A34A"
+        success_glow = "rgba(22, 163, 74, 0.15)"
         danger = "#DC2626"
+        danger_glow = "rgba(220, 38, 38, 0.15)"
         warning = "#D97706"
+        warning_glow = "rgba(217, 119, 6, 0.15)"
+        info = "#0284C7"
+        info_glow = "rgba(2, 132, 199, 0.15)"
+        gradient_start = "#D4AF37"
+        gradient_end = "#B8860B"
 
     return f"""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800&display=swap');
+    /* ═══════════════════════════════════════════════════════════════════════════
+       OBSIDIAN LUXE - Premium Hallmark QC Dashboard
+       A jewelry-grade interface with volcanic glass aesthetics
+       ═══════════════════════════════════════════════════════════════════════════ */
+
+    @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
     :root {{
         --bg-primary: {bg_primary};
         --bg-secondary: {bg_secondary};
         --bg-card: {bg_card};
         --bg-input: {bg_input};
+        --bg-elevated: {bg_elevated};
         --border: {border_color};
         --border-light: {border_light};
+        --border-glow: {border_glow};
         --text-primary: {text_primary};
         --text-secondary: {text_secondary};
         --text-muted: {text_muted};
         --accent: {accent};
         --accent-hover: {accent_hover};
+        --accent-secondary: {accent_secondary};
+        --accent-glow: {accent_glow};
+        --accent-glow-strong: {accent_glow_strong};
         --success: {success};
+        --success-glow: {success_glow};
         --danger: {danger};
+        --danger-glow: {danger_glow};
         --warning: {warning};
+        --warning-glow: {warning_glow};
+        --info: {info};
+        --info-glow: {info_glow};
+        --gradient-gold: linear-gradient(135deg, {gradient_start} 0%, {gradient_end} 100%);
+        --gradient-gold-reverse: linear-gradient(135deg, {gradient_end} 0%, {gradient_start} 100%);
     }}
 
+    /* ─── Global Typography ─────────────────────────────────────────────────── */
     * {{
-        font-family: 'Lexend', -apple-system, BlinkMacSystemFont, sans-serif !important;
+        font-family: 'Outfit', -apple-system, BlinkMacSystemFont, system-ui, sans-serif !important;
         letter-spacing: -0.01em;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
     }}
 
+    h1, h2, h3, .header-title, .stage-title {{
+        font-family: 'Syne', sans-serif !important;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+    }}
+
+    code, pre, .mono {{
+        font-family: 'JetBrains Mono', monospace !important;
+    }}
+
+    /* ─── Base App Styling ──────────────────────────────────────────────────── */
     .stApp {{
         background: var(--bg-primary) !important;
+        position: relative;
+        min-height: 100vh;
     }}
 
-    /* Override Streamlit's main container backgrounds */
+    /* Luxurious Ambient Glow - Top Right */
+    .stApp::after {{
+        content: '';
+        position: fixed;
+        top: -30%;
+        right: -15%;
+        width: 70%;
+        height: 100%;
+        background: radial-gradient(ellipse at center, var(--accent-glow) 0%, transparent 65%);
+        pointer-events: none;
+        z-index: 0;
+        animation: ambientFloat 20s ease-in-out infinite;
+        filter: blur(60px);
+    }}
+
+    /* Secondary Glow - Bottom Left */
+    .stApp::before {{
+        content: '';
+        position: fixed;
+        bottom: -20%;
+        left: -10%;
+        width: 50%;
+        height: 80%;
+        background: radial-gradient(ellipse at center, {'rgba(212, 175, 55, 0.08)' if is_dark else 'rgba(184, 134, 11, 0.06)'} 0%, transparent 60%);
+        pointer-events: none;
+        z-index: 0;
+        animation: ambientFloat 25s ease-in-out infinite reverse;
+        filter: blur(80px);
+    }}
+
+    @keyframes ambientFloat {{
+        0%, 100% {{
+            opacity: {'0.6' if is_dark else '0.4'};
+            transform: translate(0, 0) scale(1);
+        }}
+        33% {{
+            opacity: {'0.8' if is_dark else '0.5'};
+            transform: translate(5%, -3%) scale(1.05);
+        }}
+        66% {{
+            opacity: {'0.5' if is_dark else '0.35'};
+            transform: translate(-3%, 5%) scale(0.98);
+        }}
+    }}
+
+    /* Premium Noise Texture Overlay */
+    body::after {{
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        opacity: {'0.025' if is_dark else '0.015'};
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+        pointer-events: none;
+        z-index: 9999;
+    }}
+
+    /* Override Streamlit containers */
     [data-testid="stAppViewContainer"],
     [data-testid="stAppViewBlockContainer"],
     .main .block-container {{
-        background: var(--bg-primary) !important;
+        background: transparent !important;
+        position: relative;
+        z-index: 1;
     }}
 
     #MainMenu, footer, header, [data-testid="stToolbar"],
@@ -116,24 +269,16 @@ def get_styles():
 
     .block-container {{
         padding: 2.5rem 4rem !important;
-        max-width: 1500px;
+        max-width: 1700px;
     }}
 
-    /* Add subtle grain texture for premium feel */
-    .stApp::before {{
-        content: '';
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        opacity: {'0.015' if not is_dark else '0.025'};
-        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.5' numOctaves='4' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' /%3E%3C/svg%3E");
-        pointer-events: none;
-        z-index: 1;
+    @media (max-width: 1200px) {{
+        .block-container {{
+            padding: 2rem 2rem !important;
+        }}
     }}
 
-    /* --- Global text color overrides for Streamlit elements --- */
+    /* ─── Global Text Styling ───────────────────────────────────────────────── */
     .stApp p, .stApp span, .stApp label, .stApp div,
     .stMarkdown, .stMarkdown p, .stMarkdown span,
     .stMarkdown strong, .stMarkdown em, .stMarkdown li,
@@ -142,138 +287,255 @@ def get_styles():
         color: var(--text-primary) !important;
     }}
 
-    /* Muted / secondary text */
     .stCaption, [data-testid="stCaptionContainer"] p,
     [data-testid="stCaptionContainer"] span {{
         color: var(--text-muted) !important;
+        font-size: 13px;
+        letter-spacing: 0.01em;
     }}
 
-    /* Widget labels */
+    /* Widget labels - Premium styling */
     .stTextInput label, .stSelectbox label, .stMultiSelect label,
     .stNumberInput label, .stTextArea label, .stFileUploader label,
     .stRadio label, .stCheckbox label, .stDateInput label,
     [data-testid="stWidgetLabel"] label,
     [data-testid="stWidgetLabel"] p {{
-        color: var(--text-primary) !important;
+        color: var(--text-secondary) !important;
+        font-weight: 500 !important;
+        font-size: 13px !important;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 8px !important;
     }}
 
-    /* Radio button text */
+    /* Radio button styling */
     .stRadio [role="radiogroup"] label p,
     .stRadio [role="radiogroup"] label span,
     .stRadio [role="radiogroup"] label div {{
         color: var(--text-primary) !important;
+        font-weight: 500;
     }}
 
-    /* Selectbox dropdown menu */
-    [data-baseweb="popover"],
-    [data-baseweb="menu"],
-    [data-baseweb="popover"] li {{
+    .stRadio [role="radiogroup"] {{
+        gap: 8px;
+    }}
+
+    .stRadio [role="radiogroup"] label {{
         background: var(--bg-card) !important;
-        color: var(--text-primary) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 12px !important;
+        padding: 12px 20px !important;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }}
+
+    .stRadio [role="radiogroup"] label:hover {{
+        border-color: var(--accent) !important;
+        background: var(--bg-elevated) !important;
+    }}
+
+    .stRadio [role="radiogroup"] label[data-checked="true"] {{
+        border-color: var(--accent) !important;
+        background: {'rgba(212, 175, 55, 0.1)' if is_dark else 'rgba(184, 134, 11, 0.08)'} !important;
+        box-shadow: 0 0 0 1px var(--accent), 0 4px 12px var(--accent-glow);
+    }}
+
+    /* Dropdown/Selectbox Menus */
+    [data-baseweb="popover"],
+    [data-baseweb="menu"] {{
+        background: var(--bg-elevated) !important;
+        border: 1px solid var(--border) !important;
+        border-radius: 16px !important;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, {'0.5' if is_dark else '0.15'}),
+                    0 0 0 1px var(--border) !important;
+        backdrop-filter: blur(20px);
+        overflow: hidden;
     }}
 
     [data-baseweb="menu"] [role="option"] {{
         color: var(--text-primary) !important;
+        padding: 14px 18px !important;
+        transition: all 0.2s ease;
     }}
 
     [data-baseweb="menu"] [role="option"]:hover {{
-        background: var(--bg-input) !important;
+        background: {'rgba(212, 175, 55, 0.12)' if is_dark else 'rgba(184, 134, 11, 0.08)'} !important;
+        color: var(--accent) !important;
     }}
 
-    /* Spinner text */
+    /* Spinner */
     .stSpinner > div > span {{
-        color: var(--text-secondary) !important;
+        color: var(--accent) !important;
+        font-weight: 500;
     }}
 
-    /* Disabled button */
+    .stSpinner svg {{
+        stroke: var(--accent) !important;
+    }}
+
+    /* Disabled Button */
     .stButton > button:disabled {{
         background: var(--bg-input) !important;
         color: var(--text-muted) !important;
         box-shadow: none !important;
-        opacity: 0.6;
+        opacity: 0.5;
+        cursor: not-allowed;
     }}
 
-    /* Streamlit's info/success/error/warning boxes */
+    /* Alert Boxes */
     [data-testid="stAlert"] {{
         background: var(--bg-card) !important;
-        color: var(--text-primary) !important;
         border: 1px solid var(--border) !important;
+        border-radius: 16px !important;
+        backdrop-filter: blur(12px);
     }}
 
-    /* Progress bar track override */
+    .stSuccess {{
+        border-left: 4px solid var(--success) !important;
+        background: {'rgba(34, 197, 94, 0.08)' if is_dark else 'rgba(22, 163, 74, 0.06)'} !important;
+    }}
+
+    .stError {{
+        border-left: 4px solid var(--danger) !important;
+        background: {'rgba(239, 68, 68, 0.08)' if is_dark else 'rgba(220, 38, 38, 0.06)'} !important;
+    }}
+
+    .stWarning {{
+        border-left: 4px solid var(--warning) !important;
+        background: {'rgba(245, 158, 11, 0.08)' if is_dark else 'rgba(217, 119, 6, 0.06)'} !important;
+    }}
+
+    .stInfo {{
+        border-left: 4px solid var(--info) !important;
+        background: {'rgba(56, 189, 248, 0.08)' if is_dark else 'rgba(2, 132, 199, 0.06)'} !important;
+    }}
+
+    /* Progress bar */
     .stProgress > div > div {{
         background: var(--bg-input) !important;
+        border-radius: 8px;
+        overflow: hidden;
     }}
 
-    /* st.dataframe container */
+    .stProgress > div > div > div {{
+        background: var(--gradient-gold) !important;
+        border-radius: 8px;
+    }}
+
+    /* DataFrames */
     [data-testid="stDataFrame"],
     [data-testid="stDataFrame"] > div {{
         background: var(--bg-card) !important;
+        border-radius: 16px !important;
+        overflow: hidden;
     }}
 
-    /* Tabs */
+    /* ═══════════════════════════════════════════════════════════════════════════
+       PREMIUM NAVIGATION TABS - Volcanic Glass Morphism
+       ═══════════════════════════════════════════════════════════════════════════ */
     .stTabs [data-baseweb="tab-list"] {{
-        gap: 0;
-        background: var(--bg-card);
-        border-radius: 16px;
-        padding: 8px;
-        border: 1px solid var(--border);
-        box-shadow: 0 1px 3px rgba(0, 0, 0, {'0.05' if not is_dark else '0.1'});
+        gap: 8px;
+        background: {'rgba(17, 17, 20, 0.7)' if is_dark else 'rgba(255, 255, 255, 0.9)'};
+        backdrop-filter: blur(40px) saturate(180%);
+        -webkit-backdrop-filter: blur(40px) saturate(180%);
+        border-radius: 20px;
+        padding: 8px 10px;
+        border: 1px solid {'rgba(212, 175, 55, 0.15)' if is_dark else 'rgba(184, 134, 11, 0.2)'};
+        box-shadow: 0 4px 24px rgba(0, 0, 0, {'0.4' if is_dark else '0.1'}),
+                    inset 0 1px 0 {'rgba(255, 255, 255, 0.05)' if is_dark else 'rgba(255, 255, 255, 0.8)'},
+                    0 0 0 1px {'rgba(255, 255, 255, 0.03)' if is_dark else 'transparent'};
     }}
 
-    .stTabs [data-baseweb="tab"],
+    .stTabs [data-baseweb="tab"] {{
+        height: 52px;
+        border-radius: 14px;
+        font-weight: 600;
+        font-size: 13px;
+        padding: 0 28px;
+        border: none;
+        color: var(--text-muted) !important;
+        background: transparent !important;
+        transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        letter-spacing: 0.02em;
+        position: relative;
+        overflow: hidden;
+    }}
+
     .stTabs [data-baseweb="tab"] span,
     .stTabs [data-baseweb="tab"] p,
     .stTabs [data-baseweb="tab"] div {{
-        height: 48px;
-        border-radius: 12px;
-        font-weight: 600;
-        font-size: 14px;
-        padding: 0 28px;
-        border: none;
-        color: var(--text-secondary) !important;
-        background: transparent !important;
-        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-        letter-spacing: 0.01em;
+        color: inherit !important;
+        font-weight: inherit !important;
     }}
 
-    .stTabs [data-baseweb="tab"]:hover,
-    .stTabs [data-baseweb="tab"]:hover span {{
+    .stTabs [data-baseweb="tab"]::before {{
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: var(--gradient-gold);
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        border-radius: inherit;
+    }}
+
+    .stTabs [data-baseweb="tab"]:hover {{
         color: var(--text-primary) !important;
-        background: var(--bg-input) !important;
+        background: {'rgba(212, 175, 55, 0.08)' if is_dark else 'rgba(184, 134, 11, 0.06)'} !important;
+        transform: translateY(-2px);
     }}
 
     .stTabs [data-baseweb="tab-highlight"],
-    .stTabs [data-baseweb="tab-border"] {{ display: none !important; }}
+    .stTabs [data-baseweb="tab-border"] {{
+        display: none !important;
+    }}
 
-    .stTabs [aria-selected="true"],
+    .stTabs [aria-selected="true"] {{
+        background: var(--gradient-gold) !important;
+        color: {'#09090B' if is_dark else '#FFFFFF'} !important;
+        font-weight: 700 !important;
+        box-shadow: 0 8px 24px var(--accent-glow),
+                    0 2px 8px var(--accent-glow-strong),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+        transform: translateY(-2px) scale(1.02);
+    }}
+
     .stTabs [aria-selected="true"] span,
     .stTabs [aria-selected="true"] p,
     .stTabs [aria-selected="true"] div {{
-        background: var(--accent) !important;
-        color: #FFFFFF !important;
-        box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2), 0 8px 16px rgba(99, 102, 241, 0.15);
+        color: {'#09090B' if is_dark else '#FFFFFF'} !important;
+        font-weight: 700 !important;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
     }}
 
-    .stTabs [aria-selected="true"]:hover,
-    .stTabs [aria-selected="true"]:hover span {{
-        background: var(--accent-hover) !important;
-        color: #FFFFFF !important;
-        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25), 0 12px 24px rgba(99, 102, 241, 0.2);
+    .stTabs [aria-selected="true"]:hover {{
+        transform: translateY(-3px) scale(1.03);
+        box-shadow: 0 12px 32px var(--accent-glow-strong),
+                    0 4px 12px var(--accent-glow),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.3);
     }}
 
-    /* Buttons */
+    .stTabs [data-baseweb="tab-panel"] {{
+        background: transparent !important;
+        padding-top: 32px;
+    }}
+
+    /* ═══════════════════════════════════════════════════════════════════════════
+       PREMIUM BUTTONS - Gold Gradient with Micro-interactions
+       ═══════════════════════════════════════════════════════════════════════════ */
     .stButton > button {{
-        background: var(--accent) !important;
-        color: #FFFFFF !important;
+        background: var(--gradient-gold) !important;
+        color: {'#09090B' if is_dark else '#FFFFFF'} !important;
         border: none !important;
-        border-radius: 12px;
-        padding: 14px 32px;
-        font-weight: 600;
-        font-size: 14px;
-        letter-spacing: 0.01em;
-        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-        box-shadow: 0 1px 3px rgba(99, 102, 241, 0.12), 0 8px 24px rgba(99, 102, 241, 0.15);
+        border-radius: 14px;
+        padding: 16px 32px;
+        font-family: 'Outfit', sans-serif !important;
+        font-weight: 700;
+        font-size: 13px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        box-shadow: 0 4px 16px var(--accent-glow),
+                    0 1px 3px rgba(0, 0, 0, 0.2),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.2);
         position: relative;
         overflow: hidden;
     }}
@@ -282,142 +544,279 @@ def get_styles():
         content: '';
         position: absolute;
         top: 0;
-        left: 0;
+        left: -100%;
         width: 100%;
         height: 100%;
-        background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+        transition: left 0.6s ease;
+    }}
+
+    .stButton > button::after {{
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: var(--gradient-gold-reverse);
         opacity: 0;
-        transition: opacity 0.25s ease;
+        transition: opacity 0.3s ease;
+        border-radius: inherit;
     }}
 
     .stButton > button:hover {{
-        background: var(--accent-hover) !important;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2), 0 16px 32px rgba(99, 102, 241, 0.25);
+        transform: translateY(-3px) scale(1.02);
+        box-shadow: 0 8px 28px var(--accent-glow-strong),
+                    0 2px 6px rgba(0, 0, 0, 0.15),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.3);
     }}
 
     .stButton > button:hover::before {{
-        opacity: 1;
+        left: 100%;
     }}
 
     .stButton > button:active {{
-        transform: translateY(0);
-        box-shadow: 0 1px 3px rgba(99, 102, 241, 0.12), 0 4px 12px rgba(99, 102, 241, 0.15);
+        transform: translateY(-1px) scale(0.98);
+        box-shadow: 0 2px 8px var(--accent-glow),
+                    inset 0 2px 4px rgba(0, 0, 0, 0.1);
+        transition: all 0.1s ease;
     }}
 
-    /* Inputs */
+    /* ─── Input Fields - Obsidian Glass ─────────────────────────────────────── */
     .stSelectbox [data-baseweb="select"] > div,
     .stTextInput > div > div > input,
     .stNumberInput > div > div > input {{
-        background: var(--bg-input) !important;
+        background: {'rgba(22, 22, 26, 0.8)' if is_dark else 'rgba(248, 247, 242, 0.9)'} !important;
+        backdrop-filter: blur(12px);
         border: 1px solid var(--border) !important;
-        border-radius: 12px !important;
+        border-radius: 14px !important;
         color: var(--text-primary) !important;
-        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-        padding: 12px 16px !important;
-        font-size: 14px !important;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        padding: 16px 20px !important;
+        font-size: 15px !important;
         font-weight: 500 !important;
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, {'0.15' if is_dark else '0.04'});
+    }}
+
+    .stSelectbox [data-baseweb="select"] > div::placeholder,
+    .stTextInput > div > div > input::placeholder {{
+        color: var(--text-muted) !important;
+        opacity: 0.7;
     }}
 
     .stSelectbox [data-baseweb="select"] > div:focus-within,
     .stTextInput > div > div > input:focus,
     .stNumberInput > div > div > input:focus {{
         border-color: var(--accent) !important;
-        box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.08) !important;
-        background: var(--bg-card) !important;
+        box-shadow: 0 0 0 3px var(--accent-glow),
+                    inset 0 2px 4px rgba(0, 0, 0, {'0.1' if is_dark else '0.03'}) !important;
+        background: var(--bg-elevated) !important;
+        outline: none;
     }}
 
     .stTextArea textarea {{
-        background: var(--bg-input) !important;
+        background: {'rgba(22, 22, 26, 0.8)' if is_dark else 'rgba(248, 247, 242, 0.9)'} !important;
+        backdrop-filter: blur(12px);
         border: 1px solid var(--border) !important;
-        border-radius: 10px !important;
+        border-radius: 14px !important;
         color: var(--text-primary) !important;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        padding: 16px 20px !important;
+        font-size: 14px !important;
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, {'0.15' if is_dark else '0.04'});
     }}
 
-    /* File Uploader */
+    .stTextArea textarea:focus {{
+        border-color: var(--accent) !important;
+        box-shadow: 0 0 0 3px var(--accent-glow),
+                    inset 0 2px 4px rgba(0, 0, 0, {'0.1' if is_dark else '0.03'}) !important;
+        outline: none;
+    }}
+
+    /* ═══════════════════════════════════════════════════════════════════════════
+       PREMIUM FILE UPLOADER - Volcanic Glass Drop Zone
+       ═══════════════════════════════════════════════════════════════════════════ */
     [data-testid="stFileUploader"] section {{
-        background: var(--bg-card) !important;
-        border: 2px dashed var(--border) !important;
-        border-radius: 20px !important;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        padding: 24px !important;
+        background: {'rgba(17, 17, 20, 0.6)' if is_dark else 'rgba(255, 255, 255, 0.7)'} !important;
+        backdrop-filter: blur(24px) saturate(150%);
+        -webkit-backdrop-filter: blur(24px) saturate(150%);
+        border: 2px dashed {'rgba(212, 175, 55, 0.4)' if is_dark else 'rgba(184, 134, 11, 0.35)'} !important;
+        border-radius: 24px !important;
+        transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        padding: 40px 32px !important;
+        position: relative;
+        overflow: hidden;
+    }}
+
+    [data-testid="stFileUploader"] section::before {{
+        content: '';
+        position: absolute;
+        top: -50%;
+        left: -50%;
+        width: 200%;
+        height: 200%;
+        background: conic-gradient(from 0deg, transparent, var(--accent-glow), transparent, var(--accent-glow), transparent);
+        opacity: 0;
+        transition: opacity 0.5s ease;
+        animation: borderRotate 4s linear infinite paused;
+    }}
+
+    @keyframes borderRotate {{
+        100% {{ transform: rotate(360deg); }}
     }}
 
     [data-testid="stFileUploader"] section:hover {{
         border-color: var(--accent) !important;
-        background: {'rgba(99, 102, 241, 0.03)' if not is_dark else 'rgba(99, 102, 241, 0.08)'} !important;
-        box-shadow: 0 8px 24px rgba(99, 102, 241, 0.1);
+        border-style: solid !important;
+        background: {'rgba(212, 175, 55, 0.06)' if is_dark else 'rgba(184, 134, 11, 0.04)'} !important;
+        box-shadow: 0 16px 48px var(--accent-glow),
+                    0 0 0 1px {'rgba(212, 175, 55, 0.3)' if is_dark else 'rgba(184, 134, 11, 0.2)'},
+                    inset 0 1px 0 {'rgba(255, 255, 255, 0.08)' if is_dark else 'rgba(255, 255, 255, 0.9)'};
+        transform: translateY(-4px);
     }}
 
-    /* Metrics */
+    [data-testid="stFileUploader"] section:hover::before {{
+        opacity: 0.3;
+        animation-play-state: running;
+    }}
+
+    /* ═══════════════════════════════════════════════════════════════════════════
+       METRIC CARDS - Premium Data Display
+       ═══════════════════════════════════════════════════════════════════════════ */
     [data-testid="stMetric"] {{
-        background: var(--bg-card) !important;
-        border: 1px solid var(--border) !important;
-        border-radius: 16px !important;
-        padding: 24px !important;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, {'0.04' if not is_dark else '0.12'});
-        transition: all 0.25s ease;
+        background: {'rgba(17, 17, 20, 0.7)' if is_dark else 'rgba(255, 255, 255, 0.85)'} !important;
+        backdrop-filter: blur(24px) saturate(180%);
+        -webkit-backdrop-filter: blur(24px) saturate(180%);
+        border: 1px solid {'rgba(212, 175, 55, 0.15)' if is_dark else 'rgba(184, 134, 11, 0.12)'} !important;
+        border-radius: 20px !important;
+        padding: 28px 24px !important;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, {'0.3' if is_dark else '0.08'}),
+                    inset 0 1px 0 {'rgba(255, 255, 255, 0.05)' if is_dark else 'rgba(255, 255, 255, 0.9)'};
+        transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        position: relative;
+        overflow: hidden;
+    }}
+
+    [data-testid="stMetric"]::before {{
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: var(--gradient-gold);
+        opacity: 0.7;
+    }}
+
+    [data-testid="stMetric"]::after {{
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 100px;
+        height: 100px;
+        background: radial-gradient(circle, var(--accent-glow) 0%, transparent 70%);
+        opacity: 0;
+        transition: opacity 0.4s ease;
     }}
 
     [data-testid="stMetric"]:hover {{
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, {'0.06' if not is_dark else '0.16'});
+        transform: translateY(-6px);
+        border-color: {'rgba(212, 175, 55, 0.35)' if is_dark else 'rgba(184, 134, 11, 0.25)'} !important;
+        box-shadow: 0 16px 48px rgba(0, 0, 0, {'0.4' if is_dark else '0.12'}),
+                    0 0 0 1px var(--accent-glow),
+                    inset 0 1px 0 {'rgba(255, 255, 255, 0.1)' if is_dark else 'rgba(255, 255, 255, 1)'};
+    }}
+
+    [data-testid="stMetric"]:hover::after {{
+        opacity: 0.6;
     }}
 
     [data-testid="stMetricValue"] {{
-        color: var(--accent) !important;
-        font-weight: 700 !important;
-        font-size: 32px !important;
-        letter-spacing: -0.02em !important;
+        font-family: 'Syne', sans-serif !important;
+        font-weight: 800 !important;
+        font-size: 42px !important;
+        letter-spacing: -0.04em !important;
+        background: var(--gradient-gold);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        line-height: 1.1;
     }}
 
     [data-testid="stMetricLabel"] {{
-        color: var(--text-secondary) !important;
-        font-weight: 500 !important;
-        font-size: 13px !important;
-        letter-spacing: 0.02em !important;
+        font-family: 'Outfit', sans-serif !important;
+        color: var(--text-muted) !important;
+        font-weight: 600 !important;
+        font-size: 11px !important;
+        letter-spacing: 0.12em !important;
         text-transform: uppercase;
+        margin-top: 8px !important;
     }}
 
-    /* Expander */
+    /* ─── Expanders ─────────────────────────────────────────────────────────── */
     [data-testid="stExpander"] {{
         border: 1px solid var(--border) !important;
-        border-radius: 12px !important;
+        border-radius: 16px !important;
         background: var(--bg-card) !important;
+        overflow: hidden;
+        transition: all 0.3s ease;
+    }}
+
+    [data-testid="stExpander"]:hover {{
+        border-color: {'rgba(212, 175, 55, 0.3)' if is_dark else 'rgba(184, 134, 11, 0.2)'} !important;
     }}
 
     [data-testid="stExpander"] summary {{
         background: var(--bg-input) !important;
-        color: var(--text-primary) !important;
+        padding: 16px 20px !important;
+        transition: all 0.3s ease;
+    }}
+
+    [data-testid="stExpander"] summary:hover {{
+        background: var(--bg-elevated) !important;
     }}
 
     [data-testid="stExpander"] summary span,
     [data-testid="stExpander"] summary p {{
         color: var(--text-primary) !important;
+        font-weight: 600 !important;
     }}
 
     [data-testid="stExpander"] [data-testid="stExpanderDetails"] {{
         background: var(--bg-card) !important;
+        padding: 20px !important;
+        border-top: 1px solid var(--border);
     }}
 
-    [data-testid="stExpander"] [data-testid="stExpanderDetails"] p,
-    [data-testid="stExpander"] [data-testid="stExpanderDetails"] span {{
-        color: var(--text-primary) !important;
-    }}
-
-    /* Custom components */
+    /* ═══════════════════════════════════════════════════════════════════════════
+       HEADER BAR - Obsidian Glass Hero
+       ═══════════════════════════════════════════════════════════════════════════ */
     .header-bar {{
-        background: var(--bg-card);
-        border: 1px solid var(--border);
-        border-radius: 20px;
-        padding: 24px 32px;
-        margin-bottom: 32px;
+        background: {'rgba(17, 17, 20, 0.75)' if is_dark else 'rgba(255, 255, 255, 0.92)'};
+        backdrop-filter: blur(40px) saturate(200%);
+        -webkit-backdrop-filter: blur(40px) saturate(200%);
+        border: 1px solid {'rgba(212, 175, 55, 0.2)' if is_dark else 'rgba(184, 134, 11, 0.15)'};
+        border-radius: 28px;
+        padding: 36px 44px;
+        margin-bottom: 40px;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, {'0.05' if not is_dark else '0.15'});
+        box-shadow: 0 16px 48px rgba(0, 0, 0, {'0.4' if is_dark else '0.1'}),
+                    0 0 0 1px {'rgba(255, 255, 255, 0.03)' if is_dark else 'transparent'},
+                    inset 0 1px 0 {'rgba(255, 255, 255, 0.06)' if is_dark else 'rgba(255, 255, 255, 1)'};
         position: relative;
         overflow: hidden;
+        animation: headerReveal 1s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }}
+
+    @keyframes headerReveal {{
+        from {{
+            opacity: 0;
+            transform: translateY(-30px) scale(0.98);
+        }}
+        to {{
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }}
     }}
 
     .header-bar::before {{
@@ -425,314 +824,606 @@ def get_styles():
         position: absolute;
         top: 0;
         left: 0;
-        width: 4px;
+        width: 5px;
         height: 100%;
-        background: linear-gradient(180deg, var(--accent) 0%, var(--accent-hover) 100%);
+        background: var(--gradient-gold);
+        box-shadow: 0 0 30px var(--accent-glow-strong),
+                    0 0 60px var(--accent-glow);
+    }}
+
+    .header-bar::after {{
+        content: '';
+        position: absolute;
+        top: -100%;
+        right: -20%;
+        width: 500px;
+        height: 300%;
+        background: conic-gradient(from 45deg, transparent 0deg, var(--accent-glow) 90deg, transparent 180deg);
+        opacity: 0.15;
+        pointer-events: none;
+        animation: headerGlow 8s linear infinite;
+    }}
+
+    @keyframes headerGlow {{
+        100% {{ transform: rotate(360deg); }}
     }}
 
     .header-title {{
-        font-size: 24px;
-        font-weight: 700;
-        color: var(--text-primary);
-        letter-spacing: -0.02em;
-        background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
+        font-family: 'Syne', sans-serif !important;
+        font-size: 36px;
+        font-weight: 800;
+        letter-spacing: -0.04em;
+        background: var(--gradient-gold);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
+        position: relative;
+        z-index: 1;
+        text-shadow: none;
     }}
 
     .header-subtitle {{
+        font-family: 'Outfit', sans-serif !important;
         font-size: 14px;
-        color: var(--text-muted);
-        margin-top: 4px;
-        font-weight: 400;
-        letter-spacing: 0;
+        color: var(--text-secondary);
+        margin-top: 8px;
+        font-weight: 500;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        position: relative;
+        z-index: 1;
     }}
 
+    .header-badge {{
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 16px;
+        background: {'rgba(212, 175, 55, 0.15)' if is_dark else 'rgba(184, 134, 11, 0.1)'};
+        border: 1px solid {'rgba(212, 175, 55, 0.3)' if is_dark else 'rgba(184, 134, 11, 0.2)'};
+        border-radius: 100px;
+        font-size: 11px;
+        font-weight: 700;
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin-left: 16px;
+    }}
+
+    /* ═══════════════════════════════════════════════════════════════════════════
+       STAGE CARDS - Premium Section Headers
+       ═══════════════════════════════════════════════════════════════════════════ */
     .stage-card {{
-        background: var(--bg-card);
-        border: 1px solid var(--border);
-        border-radius: 20px;
-        padding: 32px;
-        margin-bottom: 24px;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        box-shadow: 0 1px 3px rgba(0, 0, 0, {'0.04' if not is_dark else '0.12'}), 0 8px 24px rgba(0, 0, 0, {'0.02' if not is_dark else '0.08'});
+        background: {'rgba(17, 17, 20, 0.65)' if is_dark else 'rgba(255, 255, 255, 0.88)'};
+        backdrop-filter: blur(32px) saturate(180%);
+        -webkit-backdrop-filter: blur(32px) saturate(180%);
+        border: 1px solid {'rgba(212, 175, 55, 0.12)' if is_dark else 'rgba(184, 134, 11, 0.1)'};
+        border-radius: 24px;
+        padding: 36px 40px;
+        margin-bottom: 28px;
+        transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, {'0.3' if is_dark else '0.08'}),
+                    inset 0 1px 0 {'rgba(255, 255, 255, 0.04)' if is_dark else 'rgba(255, 255, 255, 0.9)'};
         position: relative;
         overflow: hidden;
+        animation: stageReveal 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+    }}
+
+    @keyframes stageReveal {{
+        from {{
+            opacity: 0;
+            transform: translateY(40px) scale(0.97);
+        }}
+        to {{
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }}
     }}
 
     .stage-card::before {{
         content: '';
         position: absolute;
         top: 0;
-        left: 0;
-        width: 100%;
+        right: 0;
+        width: 40%;
         height: 100%;
-        background: radial-gradient(circle at top right, rgba(99, 102, 241, 0.05) 0%, transparent 70%);
+        background: radial-gradient(ellipse at 100% 0%, var(--accent-glow) 0%, transparent 70%);
+        opacity: 0.4;
         pointer-events: none;
+        transition: all 0.5s ease;
+    }}
+
+    .stage-card::after {{
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--accent), transparent);
+        opacity: 0.3;
     }}
 
     .stage-card:hover {{
-        border-color: var(--accent);
-        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.08), 0 16px 48px rgba(99, 102, 241, 0.12);
-        transform: translateY(-2px);
+        border-color: {'rgba(212, 175, 55, 0.3)' if is_dark else 'rgba(184, 134, 11, 0.25)'};
+        box-shadow: 0 20px 60px rgba(0, 0, 0, {'0.4' if is_dark else '0.12'}),
+                    0 0 0 1px var(--accent-glow),
+                    inset 0 1px 0 {'rgba(255, 255, 255, 0.08)' if is_dark else 'rgba(255, 255, 255, 1)'};
+        transform: translateY(-4px);
+    }}
+
+    .stage-card:hover::before {{
+        opacity: 0.7;
     }}
 
     .stage-number {{
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 40px;
-        height: 40px;
-        background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
-        color: #FFFFFF;
-        border-radius: 12px;
-        font-weight: 700;
-        font-size: 16px;
-        margin-right: 16px;
-        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
+        width: 54px;
+        height: 54px;
+        background: var(--gradient-gold);
+        color: {'#09090B' if is_dark else '#FFFFFF'};
+        border-radius: 16px;
+        font-family: 'Syne', sans-serif !important;
+        font-weight: 800;
+        font-size: 22px;
+        margin-right: 20px;
+        box-shadow: 0 8px 24px var(--accent-glow-strong),
+                    0 2px 8px var(--accent-glow),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+        position: relative;
+        z-index: 1;
+        transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }}
+
+    .stage-card:hover .stage-number {{
+        transform: scale(1.08) rotate(-3deg);
+        box-shadow: 0 12px 32px var(--accent-glow-strong),
+                    0 4px 12px var(--accent-glow),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.35);
     }}
 
     .stage-title {{
-        font-size: 20px;
+        font-family: 'Syne', sans-serif !important;
+        font-size: 26px;
         font-weight: 700;
         color: var(--text-primary);
         display: inline;
-        letter-spacing: -0.01em;
+        letter-spacing: -0.03em;
+        position: relative;
+        z-index: 1;
     }}
 
     .stage-desc {{
-        font-size: 14px;
+        font-family: 'Outfit', sans-serif !important;
+        font-size: 15px;
         color: var(--text-secondary);
-        margin-top: 12px;
+        margin-top: 14px;
         margin-bottom: 24px;
-        line-height: 1.6;
+        line-height: 1.7;
         font-weight: 400;
+        position: relative;
+        z-index: 1;
+        max-width: 600px;
     }}
 
+    /* ═══════════════════════════════════════════════════════════════════════════
+       RESULT CARDS - Data Display Containers
+       ═══════════════════════════════════════════════════════════════════════════ */
     .result-card {{
-        background: var(--bg-card);
-        border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 20px;
-        margin: 12px 0;
-        animation: fadeIn 0.3s ease;
+        background: {'rgba(17, 17, 20, 0.6)' if is_dark else 'rgba(255, 255, 255, 0.85)'};
+        backdrop-filter: blur(20px) saturate(160%);
+        -webkit-backdrop-filter: blur(20px) saturate(160%);
+        border: 1px solid {'rgba(39, 39, 42, 0.8)' if is_dark else 'rgba(0, 0, 0, 0.06)'};
+        border-radius: 20px;
+        padding: 28px;
+        margin: 16px 0;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, {'0.25' if is_dark else '0.06'}),
+                    inset 0 1px 0 {'rgba(255, 255, 255, 0.03)' if is_dark else 'rgba(255, 255, 255, 0.9)'};
+        animation: cardReveal 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+        transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        position: relative;
     }}
 
-    @keyframes fadeIn {{
-        from {{ opacity: 0; transform: translateY(10px); }}
-        to {{ opacity: 1; transform: translateY(0); }}
+    .result-card::before {{
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, {'rgba(212, 175, 55, 0.3)' if is_dark else 'rgba(184, 134, 11, 0.2)'}, transparent);
     }}
 
+    .result-card:hover {{
+        transform: translateY(-3px);
+        border-color: {'rgba(212, 175, 55, 0.2)' if is_dark else 'rgba(184, 134, 11, 0.15)'};
+        box-shadow: 0 16px 48px rgba(0, 0, 0, {'0.35' if is_dark else '0.1'}),
+                    0 0 0 1px {'rgba(212, 175, 55, 0.1)' if is_dark else 'transparent'},
+                    inset 0 1px 0 {'rgba(255, 255, 255, 0.05)' if is_dark else 'rgba(255, 255, 255, 1)'};
+    }}
+
+    @keyframes cardReveal {{
+        from {{
+            opacity: 0;
+            transform: translateY(24px) scale(0.98);
+        }}
+        to {{
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }}
+    }}
+
+    /* ═══════════════════════════════════════════════════════════════════════════
+       BADGES - Premium Status Indicators
+       ═══════════════════════════════════════════════════════════════════════════ */
     .badge {{
         display: inline-flex;
         align-items: center;
         padding: 8px 16px;
-        border-radius: 100px;
+        border-radius: 10px;
+        font-family: 'Outfit', sans-serif !important;
         font-size: 11px;
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.08em;
-        backdrop-filter: blur(8px);
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, {'0.2' if is_dark else '0.08'}),
+                    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        position: relative;
+        overflow: hidden;
+    }}
+
+    .badge::before {{
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+        transition: left 0.5s ease;
+    }}
+
+    .badge:hover {{
+        transform: translateY(-2px) scale(1.02);
+    }}
+
+    .badge:hover::before {{
+        left: 100%;
     }}
 
     .badge-success {{
-        background: linear-gradient(135deg, rgba(5, 150, 105, 0.15) 0%, rgba(5, 150, 105, 0.08) 100%);
-        color: var(--success);
-        border: 1px solid rgba(5, 150, 105, 0.2);
+        background: {'rgba(34, 197, 94, 0.15)' if is_dark else 'rgba(22, 163, 74, 0.12)'};
+        color: {'#4ADE80' if is_dark else '#16A34A'};
+        border: 1px solid {'rgba(34, 197, 94, 0.35)' if is_dark else 'rgba(22, 163, 74, 0.25)'};
+        box-shadow: 0 0 16px {'rgba(34, 197, 94, 0.15)' if is_dark else 'rgba(22, 163, 74, 0.1)'};
     }}
 
     .badge-danger {{
-        background: linear-gradient(135deg, rgba(220, 38, 38, 0.15) 0%, rgba(220, 38, 38, 0.08) 100%);
-        color: var(--danger);
-        border: 1px solid rgba(220, 38, 38, 0.2);
+        background: {'rgba(239, 68, 68, 0.15)' if is_dark else 'rgba(220, 38, 38, 0.12)'};
+        color: {'#F87171' if is_dark else '#DC2626'};
+        border: 1px solid {'rgba(239, 68, 68, 0.35)' if is_dark else 'rgba(220, 38, 38, 0.25)'};
+        box-shadow: 0 0 16px {'rgba(239, 68, 68, 0.15)' if is_dark else 'rgba(220, 38, 38, 0.1)'};
     }}
 
     .badge-warning {{
-        background: linear-gradient(135deg, rgba(217, 119, 6, 0.15) 0%, rgba(217, 119, 6, 0.08) 100%);
-        color: var(--warning);
-        border: 1px solid rgba(217, 119, 6, 0.2);
+        background: {'rgba(245, 158, 11, 0.15)' if is_dark else 'rgba(217, 119, 6, 0.12)'};
+        color: {'#FBBF24' if is_dark else '#D97706'};
+        border: 1px solid {'rgba(245, 158, 11, 0.35)' if is_dark else 'rgba(217, 119, 6, 0.25)'};
+        box-shadow: 0 0 16px {'rgba(245, 158, 11, 0.15)' if is_dark else 'rgba(217, 119, 6, 0.1)'};
     }}
 
     .badge-info {{
-        background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(99, 102, 241, 0.08) 100%);
-        color: var(--accent);
-        border: 1px solid rgba(99, 102, 241, 0.2);
+        background: {'rgba(56, 189, 248, 0.15)' if is_dark else 'rgba(2, 132, 199, 0.12)'};
+        color: {'#7DD3FC' if is_dark else '#0284C7'};
+        border: 1px solid {'rgba(56, 189, 248, 0.35)' if is_dark else 'rgba(2, 132, 199, 0.25)'};
+        box-shadow: 0 0 16px {'rgba(56, 189, 248, 0.15)' if is_dark else 'rgba(2, 132, 199, 0.1)'};
     }}
 
+    .badge-gold {{
+        background: {'rgba(212, 175, 55, 0.2)' if is_dark else 'rgba(184, 134, 11, 0.15)'};
+        color: var(--accent);
+        border: 1px solid {'rgba(212, 175, 55, 0.4)' if is_dark else 'rgba(184, 134, 11, 0.3)'};
+        box-shadow: 0 0 16px var(--accent-glow);
+    }}
+
+    /* ─── Stat Grid ─────────────────────────────────────────────────────────── */
     .stat-grid {{
         display: grid;
         grid-template-columns: repeat(4, 1fr);
-        gap: 16px;
-        margin: 20px 0;
+        gap: 20px;
+        margin: 24px 0;
+    }}
+
+    @media (max-width: 900px) {{
+        .stat-grid {{
+            grid-template-columns: repeat(2, 1fr);
+        }}
     }}
 
     .stat-card {{
-        background: var(--bg-card);
+        background: {'rgba(17, 17, 20, 0.6)' if is_dark else 'rgba(255, 255, 255, 0.85)'};
+        backdrop-filter: blur(16px);
         border: 1px solid var(--border);
-        border-radius: 12px;
-        padding: 20px;
+        border-radius: 18px;
+        padding: 24px;
         text-align: center;
-        transition: all 0.2s ease;
+        transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+        position: relative;
+        overflow: hidden;
+    }}
+
+    .stat-card::before {{
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 2px;
+        background: var(--gradient-gold);
+        opacity: 0.5;
     }}
 
     .stat-card:hover {{
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        transform: translateY(-4px);
+        border-color: {'rgba(212, 175, 55, 0.25)' if is_dark else 'rgba(184, 134, 11, 0.2)'};
+        box-shadow: 0 12px 32px rgba(0, 0, 0, {'0.3' if is_dark else '0.1'}),
+                    0 0 0 1px var(--accent-glow);
     }}
 
     .stat-value {{
-        font-size: 28px;
+        font-family: 'Syne', sans-serif !important;
+        font-size: 36px;
         font-weight: 800;
-        color: var(--accent);
+        letter-spacing: -0.03em;
+        background: var(--gradient-gold);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
     }}
 
     .stat-label {{
-        font-size: 12px;
+        font-family: 'Outfit', sans-serif !important;
+        font-size: 11px;
         font-weight: 600;
         color: var(--text-muted);
         text-transform: uppercase;
-        letter-spacing: 0.5px;
-        margin-top: 4px;
+        letter-spacing: 0.1em;
+        margin-top: 8px;
     }}
 
+    /* ─── Data Rows ─────────────────────────────────────────────────────────── */
     .data-row {{
         display: flex;
         justify-content: space-between;
-        padding: 12px 0;
-        border-bottom: 1px solid var(--border-light);
+        align-items: center;
+        padding: 14px 0;
+        border-bottom: 1px solid {'rgba(39, 39, 42, 0.6)' if is_dark else 'rgba(0, 0, 0, 0.06)'};
+        transition: all 0.2s ease;
     }}
 
-    .data-row:last-child {{ border-bottom: none; }}
+    .data-row:last-child {{
+        border-bottom: none;
+    }}
+
+    .data-row:hover {{
+        padding-left: 8px;
+        background: {'rgba(212, 175, 55, 0.03)' if is_dark else 'rgba(184, 134, 11, 0.02)'};
+        border-radius: 8px;
+        margin: 0 -8px;
+        padding-right: 8px;
+    }}
 
     .data-label {{
-        font-weight: 600;
-        color: var(--text-secondary);
+        font-family: 'Outfit', sans-serif !important;
+        font-weight: 500;
+        color: var(--text-muted);
         font-size: 13px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
     }}
 
     .data-value {{
+        font-family: 'JetBrains Mono', monospace !important;
         font-weight: 600;
         color: var(--text-primary);
-        font-size: 13px;
+        font-size: 14px;
     }}
 
+    /* ─── Progress Bars ─────────────────────────────────────────────────────── */
     .progress-bar {{
         height: 8px;
-        background: var(--bg-input);
-        border-radius: 4px;
+        background: {'rgba(39, 39, 42, 0.8)' if is_dark else 'rgba(0, 0, 0, 0.08)'};
+        border-radius: 100px;
         overflow: hidden;
-        margin: 8px 0;
+        margin: 12px 0;
+        position: relative;
+    }}
+
+    .progress-bar::before {{
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.1) 50%, transparent 100%);
+        animation: progressShine 2s ease-in-out infinite;
+    }}
+
+    @keyframes progressShine {{
+        0% {{ transform: translateX(-100%); }}
+        100% {{ transform: translateX(100%); }}
     }}
 
     .progress-fill {{
         height: 100%;
-        border-radius: 4px;
-        transition: width 0.5s ease;
+        border-radius: 100px;
+        transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+        position: relative;
     }}
 
+    .progress-fill::after {{
+        content: '';
+        position: absolute;
+        top: 0;
+        right: 0;
+        width: 20px;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4));
+        border-radius: 100px;
+    }}
+
+    /* ─── Empty State ───────────────────────────────────────────────────────── */
     .empty-state {{
         text-align: center;
-        padding: 60px 20px;
+        padding: 80px 40px;
         color: var(--text-muted);
+        background: {'rgba(17, 17, 20, 0.4)' if is_dark else 'rgba(255, 255, 255, 0.6)'};
+        border-radius: 24px;
+        border: 1px dashed var(--border);
     }}
 
     .empty-icon {{
-        font-size: 48px;
-        margin-bottom: 16px;
-        opacity: 0.3;
+        font-size: 56px;
+        margin-bottom: 20px;
+        opacity: 0.4;
+        filter: grayscale(0.5);
     }}
 
     .empty-title {{
-        font-size: 16px;
-        font-weight: 600;
+        font-family: 'Syne', sans-serif !important;
+        font-size: 20px;
+        font-weight: 700;
         color: var(--text-secondary);
-        margin-bottom: 8px;
+        margin-bottom: 12px;
+        letter-spacing: -0.02em;
     }}
 
     .empty-hint {{
+        font-family: 'Outfit', sans-serif !important;
         font-size: 14px;
         color: var(--text-muted);
+        max-width: 300px;
+        margin: 0 auto;
+        line-height: 1.6;
     }}
 
+    /* ─── Theme Toggle ──────────────────────────────────────────────────────── */
     .theme-toggle {{
-        background: var(--bg-input);
+        background: {'rgba(17, 17, 20, 0.8)' if is_dark else 'rgba(248, 247, 242, 0.9)'};
         border: 1px solid var(--border);
-        border-radius: 8px;
-        padding: 8px 16px;
+        border-radius: 12px;
+        padding: 12px 20px;
+        font-family: 'Outfit', sans-serif !important;
         font-size: 13px;
-        font-weight: 500;
+        font-weight: 600;
         color: var(--text-secondary);
         cursor: pointer;
-        transition: all 0.2s ease;
+        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
     }}
 
     .theme-toggle:hover {{
-        background: var(--accent);
-        color: #FFFFFF;
+        background: var(--gradient-gold);
+        color: {'#09090B' if is_dark else '#FFFFFF'};
         border-color: var(--accent);
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px var(--accent-glow);
     }}
 
-    /* Hide default Streamlit elements we don't need */
+    /* ─── Hide Default Streamlit Elements ───────────────────────────────────── */
     .stDeployButton {{ display: none !important; }}
 
-    /* Scrollbar */
-    ::-webkit-scrollbar {{ width: 8px; }}
-    ::-webkit-scrollbar-track {{ background: var(--bg-primary); }}
-    ::-webkit-scrollbar-thumb {{
-        background: var(--border);
-        border-radius: 4px;
+    /* ─── Premium Scrollbar ─────────────────────────────────────────────────── */
+    ::-webkit-scrollbar {{
+        width: 10px;
+        height: 10px;
     }}
-    ::-webkit-scrollbar-thumb:hover {{ background: var(--accent); }}
 
-    /* Table styling */
+    ::-webkit-scrollbar-track {{
+        background: {'rgba(9, 9, 11, 0.5)' if is_dark else 'rgba(0, 0, 0, 0.03)'};
+        border-radius: 100px;
+    }}
+
+    ::-webkit-scrollbar-thumb {{
+        background: {'rgba(212, 175, 55, 0.3)' if is_dark else 'rgba(184, 134, 11, 0.25)'};
+        border-radius: 100px;
+        border: 2px solid transparent;
+        background-clip: content-box;
+        transition: background 0.2s ease;
+    }}
+
+    ::-webkit-scrollbar-thumb:hover {{
+        background: {'rgba(212, 175, 55, 0.6)' if is_dark else 'rgba(184, 134, 11, 0.5)'};
+        border: 2px solid transparent;
+        background-clip: content-box;
+    }}
+
+    ::-webkit-scrollbar-corner {{
+        background: transparent;
+    }}
+
+    /* ─── Table / DataFrame Styling ─────────────────────────────────────────── */
     .dataframe {{
         background: var(--bg-card) !important;
         border: 1px solid var(--border) !important;
-        border-radius: 12px !important;
+        border-radius: 16px !important;
+        overflow: hidden;
     }}
 
     .dataframe th {{
-        background: var(--bg-input) !important;
+        background: {'rgba(212, 175, 55, 0.08)' if is_dark else 'rgba(184, 134, 11, 0.06)'} !important;
         color: var(--text-primary) !important;
+        font-family: 'Outfit', sans-serif !important;
+        font-weight: 600 !important;
+        text-transform: uppercase;
+        font-size: 11px !important;
+        letter-spacing: 0.08em;
+        padding: 16px !important;
     }}
 
     .dataframe td {{
         color: var(--text-primary) !important;
         background: var(--bg-card) !important;
+        font-family: 'JetBrains Mono', monospace !important;
+        font-size: 13px !important;
+        padding: 14px 16px !important;
+        border-bottom: 1px solid var(--border-light) !important;
     }}
 
-    /* Glide data grid (st.dataframe uses this internally) */
+    .dataframe tr:hover td {{
+        background: {'rgba(212, 175, 55, 0.04)' if is_dark else 'rgba(184, 134, 11, 0.03)'} !important;
+    }}
+
     [data-testid="stDataFrame"] canvas + div {{
         background: var(--bg-card) !important;
     }}
 
-    /* Success/Error messages */
-    .stSuccess, .stError, .stWarning, .stInfo {{
-        border-radius: 10px !important;
-    }}
-
-    /* File uploader text */
+    /* ─── File Uploader Text ────────────────────────────────────────────────── */
     [data-testid="stFileUploader"] section div,
     [data-testid="stFileUploader"] section span,
     [data-testid="stFileUploader"] section small,
     [data-testid="stFileUploader"] section p {{
-        color: var(--text-secondary) !important;
+        color: var(--text-muted) !important;
+        font-family: 'Outfit', sans-serif !important;
     }}
 
     [data-testid="stFileUploader"] section button {{
         color: var(--accent) !important;
+        font-weight: 600 !important;
     }}
 
-    /* Uploaded file name chip */
     [data-testid="stFileUploader"] [data-testid="stMarkdown"] {{
         color: var(--text-primary) !important;
     }}
 
-    /* Sidebar */
+    /* ─── Sidebar ───────────────────────────────────────────────────────────── */
     [data-testid="stSidebar"] {{
-        background: var(--bg-secondary) !important;
+        background: {'rgba(12, 12, 15, 0.95)' if is_dark else 'rgba(253, 252, 247, 0.98)'} !important;
+        border-right: 1px solid var(--border) !important;
     }}
 
     [data-testid="stSidebar"] p,
@@ -741,14 +1432,98 @@ def get_styles():
         color: var(--text-primary) !important;
     }}
 
-    /* Streamlit tab content panel */
-    .stTabs [data-baseweb="tab-panel"] {{
-        background: transparent !important;
+    /* ─── Dividers ──────────────────────────────────────────────────────────── */
+    hr {{
+        border: none !important;
+        height: 1px !important;
+        background: linear-gradient(90deg, transparent, var(--border), transparent) !important;
+        margin: 32px 0 !important;
     }}
 
-    /* Horizontal rule / dividers */
-    hr {{
-        border-color: var(--border) !important;
+    /* ─── Image Display ─────────────────────────────────────────────────────── */
+    .stImage {{
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, {'0.4' if is_dark else '0.12'});
+    }}
+
+    .stImage img {{
+        border-radius: 16px;
+    }}
+
+    /* ─── Column Gaps ───────────────────────────────────────────────────────── */
+    [data-testid="stHorizontalBlock"] {{
+        gap: 24px !important;
+    }}
+
+    /* ─── Loading Animation Override ────────────────────────────────────────── */
+    .stSpinner {{
+        color: var(--accent) !important;
+    }}
+
+    /* ─── Animation Utilities ───────────────────────────────────────────────── */
+    @keyframes shimmer {{
+        0% {{ background-position: -200% 0; }}
+        100% {{ background-position: 200% 0; }}
+    }}
+
+    @keyframes pulse {{
+        0%, 100% {{ opacity: 1; }}
+        50% {{ opacity: 0.6; }}
+    }}
+
+    @keyframes float {{
+        0%, 100% {{ transform: translateY(0); }}
+        50% {{ transform: translateY(-8px); }}
+    }}
+
+    .shimmer {{
+        background: linear-gradient(90deg, var(--bg-card) 0%, var(--bg-elevated) 50%, var(--bg-card) 100%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s ease-in-out infinite;
+    }}
+
+    /* ─── Special Gold Accent Classes ───────────────────────────────────────── */
+    .gold-text {{
+        background: var(--gradient-gold);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }}
+
+    .gold-border {{
+        border: 1px solid var(--accent) !important;
+        box-shadow: 0 0 20px var(--accent-glow);
+    }}
+
+    .gold-glow {{
+        box-shadow: 0 0 40px var(--accent-glow-strong),
+                    0 0 80px var(--accent-glow);
+    }}
+
+    /* ─── Responsive Adjustments ────────────────────────────────────────────── */
+    @media (max-width: 768px) {{
+        .header-bar {{
+            padding: 24px !important;
+            border-radius: 20px;
+        }}
+
+        .header-title {{
+            font-size: 24px !important;
+        }}
+
+        .stage-card {{
+            padding: 24px !important;
+        }}
+
+        .stage-title {{
+            font-size: 20px !important;
+        }}
+
+        .stat-grid {{
+            grid-template-columns: repeat(2, 1fr) !important;
+            gap: 12px;
+        }}
     }}
     </style>
     """
@@ -763,21 +1538,38 @@ def check_api_health():
 
 def render_header():
     is_dark = st.session_state.theme == "dark"
-    theme_icon = "Light" if is_dark else "Dark"
+    theme_icon = "☀️" if is_dark else "🌙"
+    theme_text = "Light" if is_dark else "Dark"
 
     col1, col2 = st.columns([6, 1])
     with col1:
         st.markdown(f"""
         <div class="header-bar">
             <div>
-                <div class="header-title">Hallmark QC System</div>
-                <div class="header-subtitle">AI-powered quality control with BIS compliance</div>
+                <div style="display: flex; align-items: center; gap: 16px;">
+                    <div class="header-title">Hallmark QC</div>
+                    <span class="header-badge">
+                        <span style="font-size: 10px;">✦</span> Premium
+                    </span>
+                </div>
+                <div class="header-subtitle">AI-Powered Quality Control • BIS Certified Validation</div>
+            </div>
+            <div style="position: relative; z-index: 2;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <div style="text-align: right;">
+                        <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600;">System Status</div>
+                        <div style="font-size: 13px; color: var(--success); font-weight: 700; display: flex; align-items: center; gap: 6px; justify-content: flex-end;">
+                            <span style="width: 8px; height: 8px; background: var(--success); border-radius: 50%; animation: pulse 2s ease-in-out infinite;"></span>
+                            Online
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
         """, unsafe_allow_html=True)
 
     with col2:
-        if st.button(f"{theme_icon} Mode", key="theme_toggle", use_container_width=True):
+        if st.button(f"{theme_icon} {theme_text}", key="theme_toggle", use_container_width=True):
             toggle_theme()
             st.rerun()
 
@@ -785,16 +1577,28 @@ def render_header():
 def render_stage1():
     """Stage 1: Upload batch data (CSV/Excel)."""
     st.markdown("""
-    <div class="stage-card">
-        <span class="stage-number">1</span>
-        <span class="stage-title">Upload Batch Data</span>
-        <div class="stage-desc">Upload a CSV or Excel file containing tag IDs and expected HUIDs</div>
+    <div class="stage-card" style="animation-delay: 0.1s;">
+        <div style="display: flex; align-items: flex-start; gap: 20px;">
+            <span class="stage-number">1</span>
+            <div>
+                <span class="stage-title">Upload Batch Data</span>
+                <div class="stage-desc">Import your CSV or Excel file containing tag IDs and expected HUIDs for batch validation processing.</div>
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
     col1, col2 = st.columns([2, 1])
 
     with col1:
+        st.markdown("""
+        <div style="margin-bottom: 16px;">
+            <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px;">
+                📁 Import File
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
         uploaded_file = st.file_uploader(
             "Drop your file here or click to browse",
             type=["csv", "xlsx", "xls"],
@@ -843,7 +1647,11 @@ def render_stage1():
                 st.error(f"Error reading file: {str(e)}")
 
     with col2:
-        st.markdown("**Recent Batches**")
+        st.markdown("""
+        <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 16px;">
+            📋 Recent Batches
+        </div>
+        """, unsafe_allow_html=True)
         try:
             response = requests.get(f"{API_BASE_URL}/stage1/batches")
             if response.status_code == 200:
@@ -974,17 +1782,25 @@ def render_ocr_detect_results(ocr_data: dict):
 def render_stage2():
     """Stage 2: Upload and process images."""
     st.markdown("""
-    <div class="stage-card">
-        <span class="stage-number">2</span>
-        <span class="stage-title">Process Images</span>
-        <div class="stage-desc">Upload hallmark images with their tag IDs for OCR processing</div>
+    <div class="stage-card" style="animation-delay: 0.15s;">
+        <div style="display: flex; align-items: flex-start; gap: 20px;">
+            <span class="stage-number">2</span>
+            <div>
+                <span class="stage-title">Process Images</span>
+                <div class="stage-desc">Upload hallmark images for AI-powered OCR analysis. Supports single or bulk image processing with automatic tag ID matching.</div>
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
     col1, col2 = st.columns([1, 1])
 
     with col1:
-        st.markdown("**Single Image Upload**")
+        st.markdown("""
+        <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 16px;">
+            📷 Single Image Upload
+        </div>
+        """, unsafe_allow_html=True)
 
         tag_id = st.text_input("Tag ID", placeholder="Enter the tag ID", key="single_tag_id")
         uploaded_image = st.file_uploader(
@@ -1099,8 +1915,14 @@ def render_stage2():
             st.session_state.ocr_detect_result = None
 
     with col2:
-        st.markdown("**Bulk Image Upload**")
-        st.caption("Upload multiple images. Filename should match tag ID (e.g., TAG001.jpg)")
+        st.markdown("""
+        <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px;">
+            📦 Bulk Image Upload
+        </div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">
+            Upload multiple images. Filename should match tag ID (e.g., TAG001.jpg)
+        </div>
+        """, unsafe_allow_html=True)
 
         bulk_files = st.file_uploader(
             "Upload Multiple Images",
@@ -1207,17 +2029,25 @@ def render_stage2():
 def render_stage3():
     """Stage 3: View results."""
     st.markdown("""
-    <div class="stage-card">
-        <span class="stage-number">3</span>
-        <span class="stage-title">View Results</span>
-        <div class="stage-desc">Search and view OCR results by tag ID or batch</div>
+    <div class="stage-card" style="animation-delay: 0.2s;">
+        <div style="display: flex; align-items: flex-start; gap: 20px;">
+            <span class="stage-number">3</span>
+            <div>
+                <span class="stage-title">View Results</span>
+                <div class="stage-desc">Search, analyze, and export OCR validation results. Filter by tag ID or batch for detailed quality insights.</div>
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
     col1, col2 = st.columns([1, 2])
 
     with col1:
-        st.markdown("**Search**")
+        st.markdown("""
+        <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 16px;">
+            🔎 Search
+        </div>
+        """, unsafe_allow_html=True)
 
         search_type = st.radio(
             "Search by",
@@ -1269,7 +2099,11 @@ def render_stage3():
                 st.error("Could not load batches")
 
     with col2:
-        st.markdown("**Results**")
+        st.markdown("""
+        <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 16px;">
+            📈 Results
+        </div>
+        """, unsafe_allow_html=True)
 
         # Display single result
         if hasattr(st.session_state, 'search_result') and st.session_state.search_result:
@@ -1386,7 +2220,9 @@ def render_stage3():
 
             # Show image if available
             if result.get('image_url'):
-                st.image(result['image_url'], caption="Uploaded Image", use_container_width=True)
+                image_bytes = fetch_image_bytes(result['image_url'])
+                if image_bytes:
+                    st.image(image_bytes, caption="Uploaded Image", use_container_width=True)
 
         # Display batch results
         elif hasattr(st.session_state, 'batch_results') and st.session_state.batch_results:
@@ -1485,15 +2321,23 @@ def render_stage3():
 def render_erp_monitor():
     """ERP Integration Monitor: View pending items and manual review queue."""
     st.markdown("""
-    <div class="stage-card">
-        <span class="stage-number">E</span>
-        <span class="stage-title">ERP Integration Monitor</span>
-        <div class="stage-desc">Monitor items from ERP system, manage manual reviews, and view statistics</div>
+    <div class="stage-card" style="animation-delay: 0.25s;">
+        <div style="display: flex; align-items: flex-start; gap: 20px;">
+            <span class="stage-number" style="background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%); box-shadow: 0 8px 24px rgba(59, 130, 246, 0.35);">E</span>
+            <div>
+                <span class="stage-title">ERP Integration Monitor</span>
+                <div class="stage-desc">Real-time monitoring dashboard for ERP system integration. Manage manual reviews, track statistics, and process pending items.</div>
+            </div>
+        </div>
     </div>
     """, unsafe_allow_html=True)
 
     # Statistics section
-    st.markdown("**Today's Statistics**")
+    st.markdown("""
+    <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 16px;">
+        📊 Today's Statistics
+    </div>
+    """, unsafe_allow_html=True)
     try:
         response = requests.get(f"{API_BASE_URL}/api/erp/statistics")
         if response.status_code == 200:
@@ -1545,7 +2389,11 @@ def render_erp_monitor():
     st.markdown("---")
 
     # Manual Review Queue
-    st.markdown("**Manual Review Queue**")
+    st.markdown("""
+    <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 16px;">
+        👁️ Manual Review Queue
+    </div>
+    """, unsafe_allow_html=True)
 
     col1, col2 = st.columns([3, 1])
 
@@ -1606,7 +2454,11 @@ def render_erp_monitor():
                         with col_img:
                             if item.get("image_url"):
                                 try:
-                                    st.image(item["image_url"], caption="Hallmark Image", use_container_width=True)
+                                    image_bytes = fetch_image_bytes(item["image_url"])
+                                    if image_bytes:
+                                        st.image(image_bytes, caption="Hallmark Image", use_container_width=True)
+                                    else:
+                                        st.caption("Image not available")
                                 except:
                                     st.caption("Image not available")
                             else:
@@ -1703,8 +2555,14 @@ def render_erp_monitor():
     st.markdown("---")
 
     # Quick Test Section
-    st.markdown("**Quick Test: Upload & Process**")
-    st.caption("Test the ERP integration by uploading an image directly")
+    st.markdown("""
+    <div style="font-size: 13px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px;">
+        🧪 Quick Test: Upload & Process
+    </div>
+    <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">
+        Test the ERP integration by uploading an image directly
+    </div>
+    """, unsafe_allow_html=True)
 
     col1, col2 = st.columns(2)
 
@@ -1796,14 +2654,24 @@ def main():
 
     # Check API status
     if not check_api_health():
-        st.warning("API is not responding. Make sure the server is running on port 8000.")
+        st.markdown("""
+        <div class="result-card" style="border-left: 4px solid var(--warning); margin-bottom: 24px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <span style="font-size: 24px;">⚠️</span>
+                <div>
+                    <div style="font-weight: 700; color: var(--text-primary); margin-bottom: 4px;">API Connection Issue</div>
+                    <div style="font-size: 13px; color: var(--text-muted);">Unable to connect to the backend server. Please ensure the API is running on port 8000.</div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
-    # Main tabs
+    # Main tabs with premium labels
     tab1, tab2, tab3, tab4 = st.tabs([
-        "Stage 1: Upload Data",
-        "Stage 2: Process Images",
-        "Stage 3: View Results",
-        "ERP Monitor"
+        "📤  Upload Data",
+        "🔍  Process Images",
+        "📊  View Results",
+        "⚡  ERP Monitor"
     ])
 
     with tab1:
