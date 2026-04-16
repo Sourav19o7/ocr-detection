@@ -1237,7 +1237,7 @@ async def erp_process_image(
 async def erp_upload_and_process(
     file: UploadFile = File(...),
     tag_id: str = Form(...),
-    expected_huid: str = Form(...),
+    expected_huid: str = Form(""),
     callback_url: Optional[str] = Form(None),
     metadata: Optional[str] = Form(None)  # JSON string
 ):
