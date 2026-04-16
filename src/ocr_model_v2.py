@@ -20,12 +20,24 @@ logger = logging.getLogger(__name__)
 
 # Fix for PaddlePaddle PIR executor compatibility issue on some systems
 # Must be set BEFORE importing paddleocr/paddle
+# These flags fix the "ConvertPirAttribute2RuntimeAttribute not support" error
 os.environ["FLAGS_enable_pir_api"] = "0"
 os.environ["FLAGS_enable_pir_in_executor"] = "0"
-os.environ["FLAGS_use_mkldnn"] = "0"  # Disable MKL-DNN/OneDNN
 os.environ["FLAGS_enable_pir_with_pt_kernel"] = "0"
+os.environ["FLAGS_pir_apply_inplace_pass"] = "0"
 
-logger.info(f"OCR Model V2: PIR flags set before PaddleOCR import")
+# Disable OneDNN/MKL-DNN which causes issues on some Linux systems
+os.environ["FLAGS_use_mkldnn"] = "0"
+os.environ["MKLDNN_CACHE_CAPACITY"] = "0"
+os.environ["FLAGS_tracer_mkldnn_ops_on"] = ""
+os.environ["FLAGS_tracer_mkldnn_ops_off"] = "conv2d,batch_norm,pool2d"
+
+# Additional Paddle stability flags
+os.environ["FLAGS_fraction_of_gpu_memory_to_use"] = "0.8"
+os.environ["FLAGS_allocator_strategy"] = "auto_growth"
+os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "True"
+
+logger.info(f"OCR Model V2: PIR and OneDNN flags set before PaddleOCR import")
 
 # Cache the PaddleOCR module to prevent reinitialization errors with Streamlit
 if "paddleocr" not in sys.modules:

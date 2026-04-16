@@ -23,10 +23,22 @@ logger = logging.getLogger(__name__)
 
 # Fix for PaddlePaddle PIR executor compatibility issue
 # Must be set BEFORE importing any paddle modules
+# These flags fix the "ConvertPirAttribute2RuntimeAttribute not support" error on Linux
 os.environ["FLAGS_enable_pir_api"] = "0"
 os.environ["FLAGS_enable_pir_in_executor"] = "0"
-os.environ["FLAGS_use_mkldnn"] = "0"  # Disable MKL-DNN/OneDNN
 os.environ["FLAGS_enable_pir_with_pt_kernel"] = "0"
+os.environ["FLAGS_pir_apply_inplace_pass"] = "0"
+
+# Disable OneDNN/MKL-DNN which causes issues on some Linux systems (especially AWS)
+os.environ["FLAGS_use_mkldnn"] = "0"
+os.environ["MKLDNN_CACHE_CAPACITY"] = "0"
+os.environ["FLAGS_tracer_mkldnn_ops_on"] = ""
+os.environ["FLAGS_tracer_mkldnn_ops_off"] = "conv2d,batch_norm,pool2d"
+
+# Additional Paddle stability flags
+os.environ["FLAGS_fraction_of_gpu_memory_to_use"] = "0.8"
+os.environ["FLAGS_allocator_strategy"] = "auto_growth"
+os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "True"
 
 logger.info(f"PIR flags set: FLAGS_enable_pir_api={os.environ.get('FLAGS_enable_pir_api')}, FLAGS_enable_pir_in_executor={os.environ.get('FLAGS_enable_pir_in_executor')}")
 
