@@ -255,7 +255,22 @@ async def upload_batch(
         if filename_lower.endswith(".csv"):
             df = pd.read_csv(io.BytesIO(contents))
         else:
-            df = pd.read_excel(io.BytesIO(contents))
+            # For Excel files, try to read the first sheet or look for HUID sheet
+            excel_file = pd.ExcelFile(io.BytesIO(contents))
+            sheet_names = excel_file.sheet_names
+
+            # Try to find a sheet with 'HUID' in the name
+            huid_sheet = None
+            for sheet in sheet_names:
+                if 'HUID' in sheet.upper() or 'PRINT' in sheet.upper():
+                    huid_sheet = sheet
+                    break
+
+            # Read the HUID sheet if found, otherwise read the first sheet
+            if huid_sheet:
+                df = pd.read_excel(io.BytesIO(contents), sheet_name=huid_sheet)
+            else:
+                df = pd.read_excel(io.BytesIO(contents), sheet_name=0)
 
         # Normalize column names
         df.columns = df.columns.str.lower().str.strip().str.replace(" ", "_")

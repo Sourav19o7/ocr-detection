@@ -42,39 +42,39 @@ def get_styles():
     is_dark = st.session_state.theme == "dark"
 
     if is_dark:
-        bg_primary = "#0D0D0D"
-        bg_secondary = "#1A1A1A"
-        bg_card = "#242424"
-        bg_input = "#2D2D2D"
-        border_color = "#3D3D3D"
-        border_light = "#2D2D2D"
-        text_primary = "#FFFFFF"
-        text_secondary = "#A0A0A0"
-        text_muted = "#666666"
-        accent = "#7B61FF"
-        accent_hover = "#9580FF"
-        success = "#10B981"
-        danger = "#EF4444"
-        warning = "#F59E0B"
+        bg_primary = "#0A0A0F"
+        bg_secondary = "#13131A"
+        bg_card = "#1A1A24"
+        bg_input = "#20202E"
+        border_color = "#2A2A38"
+        border_light = "#1F1F2C"
+        text_primary = "#F5F5F7"
+        text_secondary = "#B4B4BC"
+        text_muted = "#6E6E7A"
+        accent = "#6366F1"
+        accent_hover = "#818CF8"
+        success = "#059669"
+        danger = "#DC2626"
+        warning = "#D97706"
     else:
-        bg_primary = "#FAFAFA"
+        bg_primary = "#F8F9FA"
         bg_secondary = "#FFFFFF"
         bg_card = "#FFFFFF"
-        bg_input = "#F5F5F5"
-        border_color = "#E5E5E5"
-        border_light = "#F0F0F0"
-        text_primary = "#171717"
-        text_secondary = "#525252"
-        text_muted = "#A3A3A3"
-        accent = "#7B61FF"
-        accent_hover = "#6B51EF"
-        success = "#10B981"
-        danger = "#EF4444"
-        warning = "#F59E0B"
+        bg_input = "#F1F3F5"
+        border_color = "#DEE2E6"
+        border_light = "#E9ECEF"
+        text_primary = "#0A0A0F"
+        text_secondary = "#495057"
+        text_muted = "#868E96"
+        accent = "#6366F1"
+        accent_hover = "#4F46E5"
+        success = "#059669"
+        danger = "#DC2626"
+        warning = "#D97706"
 
     return f"""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800&display=swap');
 
     :root {{
         --bg-primary: {bg_primary};
@@ -93,9 +93,14 @@ def get_styles():
         --warning: {warning};
     }}
 
-    * {{ font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important; }}
+    * {{
+        font-family: 'Lexend', -apple-system, BlinkMacSystemFont, sans-serif !important;
+        letter-spacing: -0.01em;
+    }}
 
-    .stApp {{ background: var(--bg-primary) !important; }}
+    .stApp {{
+        background: var(--bg-primary) !important;
+    }}
 
     /* Override Streamlit's main container backgrounds */
     [data-testid="stAppViewContainer"],
@@ -110,8 +115,22 @@ def get_styles():
     }}
 
     .block-container {{
-        padding: 2rem 3rem !important;
-        max-width: 1400px;
+        padding: 2.5rem 4rem !important;
+        max-width: 1500px;
+    }}
+
+    /* Add subtle grain texture for premium feel */
+    .stApp::before {{
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        opacity: {'0.015' if not is_dark else '0.025'};
+        background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.5' numOctaves='4' /%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' /%3E%3C/svg%3E");
+        pointer-events: none;
+        z-index: 1;
     }}
 
     /* --- Global text color overrides for Streamlit elements --- */
@@ -196,24 +215,26 @@ def get_styles():
     .stTabs [data-baseweb="tab-list"] {{
         gap: 0;
         background: var(--bg-card);
-        border-radius: 12px;
-        padding: 6px;
+        border-radius: 16px;
+        padding: 8px;
         border: 1px solid var(--border);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, {'0.05' if not is_dark else '0.1'});
     }}
 
     .stTabs [data-baseweb="tab"],
     .stTabs [data-baseweb="tab"] span,
     .stTabs [data-baseweb="tab"] p,
     .stTabs [data-baseweb="tab"] div {{
-        height: 44px;
-        border-radius: 8px;
+        height: 48px;
+        border-radius: 12px;
         font-weight: 600;
         font-size: 14px;
-        padding: 0 24px;
+        padding: 0 28px;
         border: none;
         color: var(--text-secondary) !important;
         background: transparent !important;
-        transition: all 0.2s ease;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        letter-spacing: 0.01em;
     }}
 
     .stTabs [data-baseweb="tab"]:hover,
@@ -231,12 +252,14 @@ def get_styles():
     .stTabs [aria-selected="true"] div {{
         background: var(--accent) !important;
         color: #FFFFFF !important;
+        box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2), 0 8px 16px rgba(99, 102, 241, 0.15);
     }}
 
     .stTabs [aria-selected="true"]:hover,
     .stTabs [aria-selected="true"]:hover span {{
         background: var(--accent-hover) !important;
         color: #FFFFFF !important;
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25), 0 12px 24px rgba(99, 102, 241, 0.2);
     }}
 
     /* Buttons */
@@ -244,22 +267,42 @@ def get_styles():
         background: var(--accent) !important;
         color: #FFFFFF !important;
         border: none !important;
-        border-radius: 10px;
-        padding: 12px 28px;
+        border-radius: 12px;
+        padding: 14px 32px;
         font-weight: 600;
         font-size: 14px;
-        transition: all 0.2s ease;
-        box-shadow: 0 2px 8px rgba(123, 97, 255, 0.25);
+        letter-spacing: 0.01em;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 1px 3px rgba(99, 102, 241, 0.12), 0 8px 24px rgba(99, 102, 241, 0.15);
+        position: relative;
+        overflow: hidden;
+    }}
+
+    .stButton > button::before {{
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
+        opacity: 0;
+        transition: opacity 0.25s ease;
     }}
 
     .stButton > button:hover {{
         background: var(--accent-hover) !important;
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(123, 97, 255, 0.35);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.2), 0 16px 32px rgba(99, 102, 241, 0.25);
+    }}
+
+    .stButton > button:hover::before {{
+        opacity: 1;
     }}
 
     .stButton > button:active {{
         transform: translateY(0);
+        box-shadow: 0 1px 3px rgba(99, 102, 241, 0.12), 0 4px 12px rgba(99, 102, 241, 0.15);
     }}
 
     /* Inputs */
@@ -268,16 +311,20 @@ def get_styles():
     .stNumberInput > div > div > input {{
         background: var(--bg-input) !important;
         border: 1px solid var(--border) !important;
-        border-radius: 10px !important;
+        border-radius: 12px !important;
         color: var(--text-primary) !important;
-        transition: border-color 0.2s ease;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        padding: 12px 16px !important;
+        font-size: 14px !important;
+        font-weight: 500 !important;
     }}
 
     .stSelectbox [data-baseweb="select"] > div:focus-within,
     .stTextInput > div > div > input:focus,
     .stNumberInput > div > div > input:focus {{
         border-color: var(--accent) !important;
-        box-shadow: 0 0 0 3px rgba(123, 97, 255, 0.1) !important;
+        box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.08) !important;
+        background: var(--bg-card) !important;
     }}
 
     .stTextArea textarea {{
@@ -291,30 +338,45 @@ def get_styles():
     [data-testid="stFileUploader"] section {{
         background: var(--bg-card) !important;
         border: 2px dashed var(--border) !important;
-        border-radius: 16px !important;
-        transition: all 0.3s ease;
+        border-radius: 20px !important;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        padding: 24px !important;
     }}
 
     [data-testid="stFileUploader"] section:hover {{
         border-color: var(--accent) !important;
-        background: {'rgba(123, 97, 255, 0.05)' if not is_dark else 'rgba(123, 97, 255, 0.1)'} !important;
+        background: {'rgba(99, 102, 241, 0.03)' if not is_dark else 'rgba(99, 102, 241, 0.08)'} !important;
+        box-shadow: 0 8px 24px rgba(99, 102, 241, 0.1);
     }}
 
     /* Metrics */
     [data-testid="stMetric"] {{
         background: var(--bg-card) !important;
         border: 1px solid var(--border) !important;
-        border-radius: 12px !important;
-        padding: 20px !important;
+        border-radius: 16px !important;
+        padding: 24px !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, {'0.04' if not is_dark else '0.12'});
+        transition: all 0.25s ease;
+    }}
+
+    [data-testid="stMetric"]:hover {{
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, {'0.06' if not is_dark else '0.16'});
     }}
 
     [data-testid="stMetricValue"] {{
         color: var(--accent) !important;
         font-weight: 700 !important;
+        font-size: 32px !important;
+        letter-spacing: -0.02em !important;
     }}
 
     [data-testid="stMetricLabel"] {{
         color: var(--text-secondary) !important;
+        font-weight: 500 !important;
+        font-size: 13px !important;
+        letter-spacing: 0.02em !important;
+        text-transform: uppercase;
     }}
 
     /* Expander */
@@ -347,66 +409,105 @@ def get_styles():
     .header-bar {{
         background: var(--bg-card);
         border: 1px solid var(--border);
-        border-radius: 16px;
-        padding: 16px 24px;
-        margin-bottom: 24px;
+        border-radius: 20px;
+        padding: 24px 32px;
+        margin-bottom: 32px;
         display: flex;
         justify-content: space-between;
         align-items: center;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, {'0.05' if not is_dark else '0.15'});
+        position: relative;
+        overflow: hidden;
+    }}
+
+    .header-bar::before {{
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 4px;
+        height: 100%;
+        background: linear-gradient(180deg, var(--accent) 0%, var(--accent-hover) 100%);
     }}
 
     .header-title {{
-        font-size: 20px;
+        font-size: 24px;
         font-weight: 700;
         color: var(--text-primary);
+        letter-spacing: -0.02em;
+        background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
     }}
 
     .header-subtitle {{
-        font-size: 13px;
+        font-size: 14px;
         color: var(--text-muted);
-        margin-top: 2px;
+        margin-top: 4px;
+        font-weight: 400;
+        letter-spacing: 0;
     }}
 
     .stage-card {{
         background: var(--bg-card);
         border: 1px solid var(--border);
-        border-radius: 16px;
-        padding: 28px;
-        margin-bottom: 20px;
-        transition: all 0.3s ease;
+        border-radius: 20px;
+        padding: 32px;
+        margin-bottom: 24px;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, {'0.04' if not is_dark else '0.12'}), 0 8px 24px rgba(0, 0, 0, {'0.02' if not is_dark else '0.08'});
+        position: relative;
+        overflow: hidden;
+    }}
+
+    .stage-card::before {{
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: radial-gradient(circle at top right, rgba(99, 102, 241, 0.05) 0%, transparent 70%);
+        pointer-events: none;
     }}
 
     .stage-card:hover {{
         border-color: var(--accent);
-        box-shadow: 0 4px 20px rgba(123, 97, 255, 0.1);
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.08), 0 16px 48px rgba(99, 102, 241, 0.12);
+        transform: translateY(-2px);
     }}
 
     .stage-number {{
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 32px;
-        height: 32px;
-        background: var(--accent);
+        width: 40px;
+        height: 40px;
+        background: linear-gradient(135deg, var(--accent) 0%, var(--accent-hover) 100%);
         color: #FFFFFF;
-        border-radius: 10px;
+        border-radius: 12px;
         font-weight: 700;
-        font-size: 14px;
-        margin-right: 12px;
+        font-size: 16px;
+        margin-right: 16px;
+        box-shadow: 0 4px 12px rgba(99, 102, 241, 0.25);
     }}
 
     .stage-title {{
-        font-size: 18px;
+        font-size: 20px;
         font-weight: 700;
         color: var(--text-primary);
         display: inline;
+        letter-spacing: -0.01em;
     }}
 
     .stage-desc {{
         font-size: 14px;
         color: var(--text-secondary);
-        margin-top: 8px;
-        margin-bottom: 20px;
+        margin-top: 12px;
+        margin-bottom: 24px;
+        line-height: 1.6;
+        font-weight: 400;
     }}
 
     .result-card {{
@@ -426,18 +527,39 @@ def get_styles():
     .badge {{
         display: inline-flex;
         align-items: center;
-        padding: 6px 14px;
-        border-radius: 20px;
-        font-size: 12px;
-        font-weight: 600;
+        padding: 8px 16px;
+        border-radius: 100px;
+        font-size: 11px;
+        font-weight: 700;
         text-transform: uppercase;
-        letter-spacing: 0.5px;
+        letter-spacing: 0.08em;
+        backdrop-filter: blur(8px);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
     }}
 
-    .badge-success {{ background: rgba(16, 185, 129, 0.1); color: var(--success); }}
-    .badge-danger {{ background: rgba(239, 68, 68, 0.1); color: var(--danger); }}
-    .badge-warning {{ background: rgba(245, 158, 11, 0.1); color: var(--warning); }}
-    .badge-info {{ background: rgba(123, 97, 255, 0.1); color: var(--accent); }}
+    .badge-success {{
+        background: linear-gradient(135deg, rgba(5, 150, 105, 0.15) 0%, rgba(5, 150, 105, 0.08) 100%);
+        color: var(--success);
+        border: 1px solid rgba(5, 150, 105, 0.2);
+    }}
+
+    .badge-danger {{
+        background: linear-gradient(135deg, rgba(220, 38, 38, 0.15) 0%, rgba(220, 38, 38, 0.08) 100%);
+        color: var(--danger);
+        border: 1px solid rgba(220, 38, 38, 0.2);
+    }}
+
+    .badge-warning {{
+        background: linear-gradient(135deg, rgba(217, 119, 6, 0.15) 0%, rgba(217, 119, 6, 0.08) 100%);
+        color: var(--warning);
+        border: 1px solid rgba(217, 119, 6, 0.2);
+    }}
+
+    .badge-info {{
+        background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(99, 102, 241, 0.08) 100%);
+        color: var(--accent);
+        border: 1px solid rgba(99, 102, 241, 0.2);
+    }}
 
     .stat-grid {{
         display: grid;
