@@ -255,22 +255,57 @@ async def upload_batch(
         if filename_lower.endswith(".csv"):
             df = pd.read_csv(io.BytesIO(contents))
         else:
-            # For Excel files, try to read the first sheet or look for HUID sheet
-            excel_file = pd.ExcelFile(io.BytesIO(contents))
-            sheet_names = excel_file.sheet_names
+            # For Excel files, try multiple methods to handle compatibility issues
+            try:
+                # Try with openpyxl first (for .xlsx files)
+                excel_file = pd.ExcelFile(io.BytesIO(contents), engine='openpyxl')
+                sheet_names = excel_file.sheet_names
 
-            # Try to find a sheet with 'HUID' in the name
-            huid_sheet = None
-            for sheet in sheet_names:
-                if 'HUID' in sheet.upper() or 'PRINT' in sheet.upper():
-                    huid_sheet = sheet
-                    break
+                # Try to find a sheet with 'HUID' in the name
+                huid_sheet = None
+                for sheet in sheet_names:
+                    if 'HUID' in sheet.upper() or 'PRINT' in sheet.upper():
+                        huid_sheet = sheet
+                        break
 
-            # Read the HUID sheet if found, otherwise read the first sheet
-            if huid_sheet:
-                df = pd.read_excel(io.BytesIO(contents), sheet_name=huid_sheet)
-            else:
-                df = pd.read_excel(io.BytesIO(contents), sheet_name=0)
+                # Read the HUID sheet if found, otherwise read the first sheet
+                if huid_sheet:
+                    df = pd.read_excel(io.BytesIO(contents), sheet_name=huid_sheet, engine='openpyxl')
+                else:
+                    df = pd.read_excel(io.BytesIO(contents), sheet_name=0, engine='openpyxl')
+
+            except Exception as openpyxl_error:
+                # If openpyxl fails due to styling issues, read with data_only mode
+                try:
+                    from openpyxl import load_workbook
+                    wb = load_workbook(io.BytesIO(contents), data_only=True, read_only=True)
+
+                    # Find HUID sheet
+                    huid_sheet_name = None
+                    for sheet_name in wb.sheetnames:
+                        if 'HUID' in sheet_name.upper() or 'PRINT' in sheet_name.upper():
+                            huid_sheet_name = sheet_name
+                            break
+
+                    # Use the HUID sheet or first sheet
+                    ws = wb[huid_sheet_name] if huid_sheet_name else wb[wb.sheetnames[0]]
+
+                    # Convert to dataframe
+                    data = []
+                    for row in ws.iter_rows(values_only=True):
+                        if row and any(cell is not None for cell in row):  # Skip empty rows
+                            data.append(row)
+
+                    if len(data) < 2:  # Need at least header + 1 data row
+                        raise HTTPException(status_code=400, detail="Excel file has insufficient data")
+
+                    df = pd.DataFrame(data[1:], columns=data[0])
+
+                except Exception as fallback_error:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Failed to read Excel file. Try saving as a new .xlsx file or export to CSV. Original error: {str(openpyxl_error)}"
+                    )
 
         # Normalize column names
         df.columns = df.columns.str.lower().str.strip().str.replace(" ", "_")
