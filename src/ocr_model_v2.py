@@ -8,21 +8,32 @@ import os
 import sys
 import re
 import cv2
+import logging
 import numpy as np
 from PIL import Image
 from dataclasses import dataclass, field
 from typing import Optional, List, Dict, Tuple
 from enum import Enum
 
+# Configure logging
+logger = logging.getLogger(__name__)
+
 # Fix for PaddlePaddle PIR executor compatibility issue on some systems
 # Must be set BEFORE importing paddleocr/paddle
-os.environ.setdefault("FLAGS_enable_pir_api", "0")
-os.environ.setdefault("FLAGS_enable_pir_in_executor", "0")
+os.environ["FLAGS_enable_pir_api"] = "0"
+os.environ["FLAGS_enable_pir_in_executor"] = "0"
+os.environ["FLAGS_use_mkldnn"] = "0"  # Disable MKL-DNN/OneDNN
+os.environ["FLAGS_enable_pir_with_pt_kernel"] = "0"
+
+logger.info(f"OCR Model V2: PIR flags set before PaddleOCR import")
 
 # Cache the PaddleOCR module to prevent reinitialization errors with Streamlit
 if "paddleocr" not in sys.modules:
+    logger.info("Importing PaddleOCR for the first time...")
     from paddleocr import PaddleOCR
+    logger.info("PaddleOCR imported successfully")
 else:
+    logger.info("Using cached PaddleOCR module")
     PaddleOCR = sys.modules["paddleocr"].PaddleOCR
 
 

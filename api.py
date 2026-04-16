@@ -11,11 +11,24 @@ Deploy on AWS or run locally with: uvicorn api:app --host 0.0.0.0 --port 8000
 
 import os
 import sys
+import logging
+import traceback
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 # Fix for PaddlePaddle PIR executor compatibility issue
 # Must be set BEFORE importing any paddle modules
-os.environ.setdefault("FLAGS_enable_pir_api", "0")
-os.environ.setdefault("FLAGS_enable_pir_in_executor", "0")
+os.environ["FLAGS_enable_pir_api"] = "0"
+os.environ["FLAGS_enable_pir_in_executor"] = "0"
+os.environ["FLAGS_use_mkldnn"] = "0"  # Disable MKL-DNN/OneDNN
+os.environ["FLAGS_enable_pir_with_pt_kernel"] = "0"
+
+logger.info(f"PIR flags set: FLAGS_enable_pir_api={os.environ.get('FLAGS_enable_pir_api')}, FLAGS_enable_pir_in_executor={os.environ.get('FLAGS_enable_pir_in_executor')}")
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form, Query, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -1351,6 +1364,8 @@ async def erp_upload_and_process(
         )
 
     try:
+        logger.info(f"[ERP Upload] Starting processing for tag_id={tag_id}, expected_huid={expected_huid}")
+
         # Parse metadata if provided
         parsed_metadata = {}
         if metadata:
@@ -1421,6 +1436,7 @@ async def erp_upload_and_process(
             db.update_batch_item_status(tag_id, ProcessingStatus.PROCESSING)
 
         # Upload to S3
+        logger.info(f"[ERP Upload] Uploading image to storage for tag_id={tag_id}")
         image_path, image_url = storage.upload_image(
             contents,
             tag_id,
@@ -1428,9 +1444,17 @@ async def erp_upload_and_process(
             prefix="erp-uploads"
         )
         db.update_batch_item_image(tag_id, image_path, image_url)
+        logger.info(f"[ERP Upload] Image uploaded: {image_url}")
 
         # Process with OCR
-        hallmark_info = ocr_engine_v2.extract_with_hallmark_info(image)
+        logger.info(f"[ERP Upload] Starting OCR processing for tag_id={tag_id}")
+        try:
+            hallmark_info = ocr_engine_v2.extract_with_hallmark_info(image)
+            logger.info(f"[ERP Upload] OCR completed for tag_id={tag_id}, purity={hallmark_info.purity_code}, huid={hallmark_info.huid}")
+        except Exception as ocr_error:
+            logger.error(f"[ERP Upload] OCR FAILED for tag_id={tag_id}: {str(ocr_error)}")
+            logger.error(f"[ERP Upload] OCR Traceback: {traceback.format_exc()}")
+            raise ocr_error
 
         actual_huid = hallmark_info.huid
         expected_huid_clean = expected_huid.strip().upper()
