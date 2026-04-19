@@ -1,6 +1,5 @@
 paddlepaddle
 paddleocr
-streamlit
 Pillow
 numpy
 fastapi

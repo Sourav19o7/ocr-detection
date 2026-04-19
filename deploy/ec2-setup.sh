@@ -57,30 +57,10 @@ RestartSec=10
 WantedBy=multi-user.target
 EOF
 
-# Create systemd service for Dashboard
-sudo tee /etc/systemd/system/hallmark-dashboard.service > /dev/null <<EOF
-[Unit]
-Description=Hallmark QC Dashboard
-After=network.target
-
-[Service]
-Type=simple
-User=ubuntu
-WorkingDirectory=/opt/hallmark-ocr
-Environment=PATH=/opt/hallmark-ocr/venv/bin
-Environment=API_BASE_URL=http://localhost:8000
-ExecStart=/opt/hallmark-ocr/venv/bin/streamlit run src/qc_dashboard.py --server.port 8501 --server.address 0.0.0.0
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
 # Enable and start services
 sudo systemctl daemon-reload
-sudo systemctl enable hallmark-api hallmark-dashboard
-sudo systemctl start hallmark-api hallmark-dashboard
+sudo systemctl enable hallmark-api
+sudo systemctl start hallmark-api
 
 echo "=== Services started ==="
 echo "API running on port 8000"
