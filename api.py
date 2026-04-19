@@ -127,6 +127,12 @@ uploads_dir = "./uploads"
 os.makedirs(uploads_dir, exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
+# Mount the dashboard SPA assets under /static (the HTML itself is served by
+# the `/` route below so hash-based routing works on the root URL).
+static_dir = "./static"
+if os.path.isdir(static_dir):
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+
 # Initialize OCR engines at startup
 ocr_engine_v2 = None
 db: DatabaseManager = None
@@ -265,9 +271,12 @@ async def startup_event():
 # Homepage & Health Endpoints
 # =============================================================================
 
-@app.get("/", response_class=RedirectResponse)
+@app.get("/", response_class=FileResponse)
 async def homepage():
-    """Redirect to API documentation."""
+    """Serve the dashboard SPA shell."""
+    index_path = os.path.join(static_dir, "index.html")
+    if os.path.isfile(index_path):
+        return FileResponse(index_path, media_type="text/html")
     return RedirectResponse(url="/docs")
 
 
