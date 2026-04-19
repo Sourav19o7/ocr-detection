@@ -71,6 +71,135 @@ class StorageService:
             return f"{self.config.s3_prefix}/{prefix}/{timestamp}/{tag_id}_{unique_id}{ext}"
         return f"{self.config.s3_prefix}/{timestamp}/{tag_id}_{unique_id}{ext}"
 
+    def build_hallmark_key(
+        self,
+        batch_id: int,
+        tag_id: str,
+        image_type: str,
+        slot: int,
+        filename: str,
+    ) -> str:
+        """Build the canonical key for an item image.
+
+        Layout:
+            {s3_prefix}/batches/{batch_id}/{tag_id}/huid/{uuid}{ext}
+            {s3_prefix}/batches/{batch_id}/{tag_id}/artifact-{slot}/{uuid}{ext}
+        """
+        if image_type == "huid":
+            folder = "huid"
+        elif image_type == "artifact":
+            if slot not in (1, 2, 3):
+                raise ValueError(f"artifact slot must be 1, 2, or 3 (got {slot})")
+            folder = f"artifact-{slot}"
+        else:
+            raise ValueError(f"unknown image_type: {image_type}")
+
+        ext = os.path.splitext(filename or "")[1].lower() or ".jpg"
+        unique_id = uuid.uuid4().hex[:12]
+        return (
+            f"{self.config.s3_prefix}/batches/{batch_id}/{tag_id}/"
+            f"{folder}/{unique_id}{ext}"
+        )
+
+    def upload_hallmark_image(
+        self,
+        file_data: bytes,
+        batch_id: int,
+        tag_id: str,
+        image_type: str,
+        slot: int,
+        filename: str,
+    ) -> Tuple[str, Optional[str], str]:
+        """Upload an image for a batch item using the canonical layout.
+
+        Returns ``(s3_key, public_or_local_url, content_type)``.
+        """
+        key = self.build_hallmark_key(batch_id, tag_id, image_type, slot, filename)
+        content_type = self._get_content_type(filename or "")
+
+        if self.use_s3:
+            try:
+                self._s3_client.put_object(
+                    Bucket=self.config.s3_bucket,
+                    Key=key,
+                    Body=file_data,
+                    ContentType=content_type,
+                    Metadata={
+                        "tag-id": tag_id,
+                        "batch-id": str(batch_id),
+                        "image-type": image_type,
+                        "slot": str(slot),
+                    },
+                )
+                url = (
+                    f"https://{self.config.s3_bucket}.s3.{self.config.region}"
+                    f".amazonaws.com/{key}"
+                )
+                return key, url, content_type
+            except Exception as e:
+                print(f"S3 hallmark upload failed: {e}, falling back to local storage")
+
+        # Local fallback mirrors the S3 layout under ./uploads/
+        local_path = self.local_storage_path / key.replace("/", os.sep)
+        local_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(local_path, "wb") as f:
+            f.write(file_data)
+        return key, f"/uploads/{key}", content_type
+
+    def delete_by_key(self, key: str) -> bool:
+        """Delete an object by its canonical key from whichever backend holds it."""
+        if self.use_s3:
+            try:
+                self._s3_client.delete_object(Bucket=self.config.s3_bucket, Key=key)
+                # Best-effort local removal too (e.g. after a fallback write).
+            except Exception as e:
+                print(f"S3 delete failed: {e}")
+        local_path = self.local_storage_path / key.replace("/", os.sep)
+        if local_path.exists():
+            try:
+                local_path.unlink()
+            except Exception as e:
+                print(f"Local delete failed: {e}")
+                return False
+        return True
+
+    def presign_get(self, key: str, expiration: int = 3600) -> Optional[str]:
+        """Presigned GET URL (S3) or local /uploads URL for dev."""
+        if not self.use_s3:
+            return f"/uploads/{key}"
+        try:
+            return self._s3_client.generate_presigned_url(
+                "get_object",
+                Params={"Bucket": self.config.s3_bucket, "Key": key},
+                ExpiresIn=expiration,
+            )
+        except Exception as e:
+            print(f"Failed to presign GET: {e}")
+            return None
+
+    def presign_put(
+        self,
+        key: str,
+        content_type: str = "application/octet-stream",
+        expiration: int = 900,
+    ) -> Optional[str]:
+        """Presigned PUT URL for direct client-to-S3 uploads. None in local mode."""
+        if not self.use_s3:
+            return None
+        try:
+            return self._s3_client.generate_presigned_url(
+                "put_object",
+                Params={
+                    "Bucket": self.config.s3_bucket,
+                    "Key": key,
+                    "ContentType": content_type,
+                },
+                ExpiresIn=expiration,
+            )
+        except Exception as e:
+            print(f"Failed to presign PUT: {e}")
+            return None
+
     def upload_image(
         self,
         file_data: bytes,

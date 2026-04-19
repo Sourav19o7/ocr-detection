@@ -69,7 +69,7 @@ sys.path.insert(0, "config")
 from ocr_model_v2 import OCREngineV2, OCRResultV2, HallmarkInfo, HallmarkType, CheckInfo
 from database import (
     DatabaseManager, get_database, Batch, BatchItem, OCRResult as DBOCRResult,
-    ProcessingStatus, QCDecision
+    ItemImage, ProcessingStatus, QCDecision
 )
 from storage_service import StorageService, get_storage
 
@@ -474,20 +474,69 @@ async def get_batch_details(batch_id: int):
 # STAGE 2: Image Upload and Processing
 # =============================================================================
 
+def _persist_item_image(
+    batch_item: BatchItem,
+    file_bytes: bytes,
+    filename: str,
+    image_type: str,
+    slot: int,
+) -> ItemImage:
+    """Write an image to structured storage and upsert the item_images row.
+
+    Also updates batch_items.image_path/image_url when image_type='huid' so
+    the legacy single-image fields stay in sync with the gallery.
+    """
+    s3_key, url, content_type = storage.upload_hallmark_image(
+        file_bytes,
+        batch_id=batch_item.batch_id,
+        tag_id=batch_item.tag_id,
+        image_type=image_type,
+        slot=slot,
+        filename=filename,
+    )
+
+    img = ItemImage(
+        batch_item_id=batch_item.id,
+        tag_id=batch_item.tag_id,
+        image_type=image_type,
+        slot=slot,
+        s3_key=s3_key,
+        s3_bucket=storage.config.s3_bucket if storage.use_s3 else "",
+        content_type=content_type,
+        size_bytes=len(file_bytes),
+    )
+    img.id = db.upsert_item_image(img)
+
+    if image_type == "huid":
+        db.update_batch_item_image(batch_item.tag_id, s3_key, url)
+
+    return img
+
+
 @app.post("/stage2/upload-image", response_model=ImageUploadResponse)
 async def upload_and_process_image(
     file: UploadFile = File(...),
-    tag_id: str = Form(...)
+    tag_id: str = Form(...),
+    image_type: str = Form("huid"),
+    slot: int = Form(0),
 ):
     """
-    Stage 2: Upload an image for a specific tag ID and process it.
+    Stage 2: Upload an image for a specific tag ID.
 
-    The image will be:
-    1. Stored in S3 (or local storage)
-    2. Processed through OCR
-    3. Compared against the expected HUID from Stage 1
+    When ``image_type='huid'`` (default) the image is OCR'd and compared
+    against the expected HUID. When ``image_type='artifact'`` with
+    ``slot in {1,2,3}`` the image is stored alongside the HUID without OCR
+    — use it for secondary views of the same piece. HUID images always use
+    slot 0.
     """
-    # Validate file type
+    # Validate inputs
+    if image_type not in ("huid", "artifact"):
+        raise HTTPException(status_code=400, detail="image_type must be 'huid' or 'artifact'")
+    if image_type == "huid" and slot != 0:
+        raise HTTPException(status_code=400, detail="HUID images must use slot=0")
+    if image_type == "artifact" and slot not in (1, 2, 3):
+        raise HTTPException(status_code=400, detail="artifact slot must be 1, 2, or 3")
+
     allowed_types = ["image/png", "image/jpeg", "image/jpg", "image/bmp", "image/webp"]
     if file.content_type not in allowed_types:
         raise HTTPException(
@@ -495,7 +544,6 @@ async def upload_and_process_image(
             detail="Invalid file type. Allowed: PNG, JPG, JPEG, BMP, WEBP"
         )
 
-    # Check if tag_id exists in database
     batch_item = db.get_batch_item_by_tag(tag_id)
     if not batch_item:
         raise HTTPException(
@@ -506,25 +554,28 @@ async def upload_and_process_image(
     try:
         start_time = time.time()
 
-        # Read and validate image
         contents = await file.read()
-        image = Image.open(io.BytesIO(contents))
 
+        # Store the file first (both HUID and artifact paths go here).
+        _persist_item_image(batch_item, contents, file.filename, image_type, slot)
+
+        # Artifacts are stored for reference only — no OCR.
+        if image_type == "artifact":
+            return ImageUploadResponse(
+                status="success",
+                tag_id=tag_id,
+                expected_huid=batch_item.expected_huid,
+                actual_huid=None,
+                huid_match=False,
+                confidence=0.0,
+                decision="pending",
+                message=f"Artifact image stored at slot {slot}",
+            )
+
+        # HUID path — run OCR + comparison + decision.
+        image = Image.open(io.BytesIO(contents))
         if image.mode != "RGB":
             image = image.convert("RGB")
-
-        # Upload original image to storage
-        image_path, image_url = storage.upload_image(
-            contents,
-            tag_id,
-            file.filename,
-            prefix="originals"
-        )
-
-        # Update batch item with image path
-        db.update_batch_item_image(tag_id, image_path, image_url)
-
-        # Process with OCR
         hallmark_info = ocr_engine_v2.extract_with_hallmark_info(image)
 
         # Extract actual HUID
@@ -653,15 +704,8 @@ async def upload_images_bulk(
             if image.mode != "RGB":
                 image = image.convert("RGB")
 
-            # Upload image
-            image_path, image_url = storage.upload_image(
-                contents,
-                tag_id,
-                file.filename,
-                prefix="originals"
-            )
-
-            db.update_batch_item_image(tag_id, image_path, image_url)
+            # Store in the structured gallery layout (also updates batch_items).
+            _persist_item_image(batch_item, contents, file.filename, "huid", 0)
 
             # Process OCR
             hallmark_info = ocr_engine_v2.extract_with_hallmark_info(image)
@@ -714,9 +758,121 @@ async def upload_images_bulk(
     }
 
 
+@app.post("/stage2/upload-artifact")
+async def upload_artifact(
+    file: UploadFile = File(...),
+    tag_id: str = Form(...),
+    slot: int = Form(...),
+):
+    """Upload a non-HUID artifact image for a tag (slots 1, 2, or 3)."""
+    if slot not in (1, 2, 3):
+        raise HTTPException(status_code=400, detail="artifact slot must be 1, 2, or 3")
+
+    allowed_types = ["image/png", "image/jpeg", "image/jpg", "image/bmp", "image/webp"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid file type. Allowed: PNG, JPG, JPEG, BMP, WEBP",
+        )
+
+    batch_item = db.get_batch_item_by_tag(tag_id)
+    if not batch_item:
+        raise HTTPException(status_code=404, detail=f"Tag ID '{tag_id}' not found")
+
+    contents = await file.read()
+    img = _persist_item_image(batch_item, contents, file.filename, "artifact", slot)
+
+    return {
+        "status": "success",
+        "tag_id": tag_id,
+        "slot": slot,
+        "s3_key": img.s3_key,
+        "url": storage.presign_get(img.s3_key),
+        "size_bytes": img.size_bytes,
+    }
+
+
+@app.delete("/stage2/artifact/{tag_id}/{slot}")
+async def delete_artifact(tag_id: str, slot: int):
+    """Delete an artifact image for a tag at the given slot (1, 2, or 3)."""
+    if slot not in (1, 2, 3):
+        raise HTTPException(status_code=400, detail="artifact slot must be 1, 2, or 3")
+
+    existing = db.get_item_image(tag_id, "artifact", slot)
+    if not existing:
+        raise HTTPException(status_code=404, detail="artifact not found")
+
+    storage.delete_by_key(existing.s3_key)
+    db.delete_item_image(tag_id, "artifact", slot)
+    return {"status": "success", "tag_id": tag_id, "slot": slot}
+
+
 # =============================================================================
 # STAGE 3: Results Retrieval
 # =============================================================================
+
+def _resolve_image_urls(images: List[ItemImage]) -> Dict:
+    """Turn a list of ItemImage rows into the shape used by the preview UI."""
+    huid_entry = None
+    artifacts = []
+    for img in images:
+        entry = {
+            "s3_key": img.s3_key,
+            "url": storage.presign_get(img.s3_key),
+            "content_type": img.content_type,
+            "size_bytes": img.size_bytes,
+            "uploaded_at": img.uploaded_at.isoformat() if img.uploaded_at else None,
+        }
+        if img.image_type == "huid":
+            huid_entry = entry
+        else:
+            artifacts.append({"slot": img.slot, **entry})
+    artifacts.sort(key=lambda a: a["slot"])
+    return {"huid": huid_entry, "artifacts": artifacts}
+
+
+def _thumbnail_url_for_tag(tag_id: str) -> Optional[str]:
+    huid = db.get_item_image(tag_id, "huid", 0)
+    if not huid:
+        return None
+    return storage.presign_get(huid.s3_key)
+
+
+@app.get("/stage3/item/{tag_id}")
+async def get_item_detail(tag_id: str):
+    """Full item payload — metadata + HUID + artifact images with signed URLs."""
+    result = db.get_full_result_by_tag(tag_id)
+    if not result:
+        raise HTTPException(status_code=404, detail=f"Tag ID '{tag_id}' not found")
+
+    images = _resolve_image_urls(db.get_item_images_for_tag(tag_id))
+
+    return {
+        "status": "success",
+        "tag_id": result["tag_id"],
+        "batch": {
+            "id": result.get("batch_id"),
+            "name": result.get("batch_name"),
+        },
+        "expected_huid": result["expected_huid"],
+        "actual_huid": result.get("actual_huid"),
+        "huid_match": result.get("huid_match"),
+        "purity_code": result.get("purity_code"),
+        "karat": result.get("karat"),
+        "purity_percentage": result.get("purity_percentage"),
+        "confidence": result.get("confidence"),
+        "decision": result.get("decision"),
+        "rejection_reasons": result.get("rejection_reasons", []),
+        "raw_ocr_text": result.get("raw_ocr_text"),
+        "processing_status": result.get("status", "pending"),
+        "images": images,
+        "timestamps": {
+            "created_at": None,
+            "processed_at": result.get("processed_at"),
+            "processing_time_ms": result.get("processing_time_ms"),
+        },
+    }
+
 
 @app.get("/stage3/result/{tag_id}", response_model=ResultResponse)
 async def get_result_by_tag(tag_id: str):
@@ -769,6 +925,8 @@ async def get_batch_results(batch_id: int):
         raise HTTPException(status_code=404, detail="Batch not found")
 
     results = db.get_results_by_batch(batch_id)
+    for row in results:
+        row["thumbnail_url"] = _thumbnail_url_for_tag(row["tag_id"])
     stats = db.get_batch_statistics(batch_id)
 
     return BatchResultsResponse(
@@ -790,10 +948,10 @@ async def search_results(
     batch_id: Optional[int] = Query(None, description="Filter by batch"),
 ):
     """Search and filter results."""
-    # This would be enhanced with proper search functionality
     if tag_id:
         result = db.get_full_result_by_tag(tag_id)
         if result:
+            result["thumbnail_url"] = _thumbnail_url_for_tag(tag_id)
             return {"status": "success", "results": [result]}
         return {"status": "success", "results": []}
 
@@ -801,6 +959,8 @@ async def search_results(
         results = db.get_results_by_batch(batch_id)
         if decision:
             results = [r for r in results if r.get("decision") == decision]
+        for row in results:
+            row["thumbnail_url"] = _thumbnail_url_for_tag(row["tag_id"])
         return {"status": "success", "results": results}
 
     return {"status": "success", "results": [], "message": "Please provide search criteria"}

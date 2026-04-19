@@ -86,6 +86,35 @@ class BatchItem:
 
 
 @dataclass
+class ItemImage:
+    """An image associated with a batch item (HUID or artifact)."""
+    id: Optional[int] = None
+    batch_item_id: int = 0
+    tag_id: str = ""
+    image_type: str = "huid"  # 'huid' or 'artifact'
+    slot: int = 0              # 0 for huid, 1..3 for artifact
+    s3_key: str = ""
+    s3_bucket: str = ""
+    content_type: Optional[str] = None
+    size_bytes: Optional[int] = None
+    uploaded_at: Optional[datetime] = None
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "batch_item_id": self.batch_item_id,
+            "tag_id": self.tag_id,
+            "image_type": self.image_type,
+            "slot": self.slot,
+            "s3_key": self.s3_key,
+            "s3_bucket": self.s3_bucket,
+            "content_type": self.content_type,
+            "size_bytes": self.size_bytes,
+            "uploaded_at": self.uploaded_at.isoformat() if self.uploaded_at else None,
+        }
+
+
+@dataclass
 class OCRResult:
     """OCR processing result for a batch item."""
     id: Optional[int] = None
@@ -136,6 +165,21 @@ class DatabaseManager:
     def __init__(self, db_path: str = "hallmark_qc.db"):
         self.db_path = db_path
         self._init_database()
+        self._run_migrations()
+
+    def _run_migrations(self):
+        """Apply any pending schema migrations."""
+        # Local import avoids a circular import at module load time.
+        import sys as _sys
+        import os as _os
+        _sys.path.insert(0, _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))))
+        from migrations import run_migrations
+
+        conn = self._get_connection()
+        try:
+            run_migrations(conn)
+        finally:
+            conn.close()
 
     def _get_connection(self) -> sqlite3.Connection:
         conn = sqlite3.connect(self.db_path)
@@ -605,6 +649,107 @@ class DatabaseManager:
         )
         conn.commit()
         conn.close()
+
+    # Item image operations
+    def upsert_item_image(self, img: ItemImage) -> int:
+        """Insert or replace an item image for (tag_id, image_type, slot)."""
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """INSERT INTO item_images
+                   (batch_item_id, tag_id, image_type, slot, s3_key, s3_bucket,
+                    content_type, size_bytes)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+               ON CONFLICT(tag_id, image_type, slot) DO UPDATE SET
+                   batch_item_id = excluded.batch_item_id,
+                   s3_key        = excluded.s3_key,
+                   s3_bucket     = excluded.s3_bucket,
+                   content_type  = excluded.content_type,
+                   size_bytes    = excluded.size_bytes,
+                   uploaded_at   = CURRENT_TIMESTAMP""",
+            (
+                img.batch_item_id,
+                img.tag_id,
+                img.image_type,
+                img.slot,
+                img.s3_key,
+                img.s3_bucket,
+                img.content_type,
+                img.size_bytes,
+            ),
+        )
+        conn.commit()
+        # On UPDATE lastrowid may be 0; fetch the authoritative id.
+        cursor.execute(
+            "SELECT id FROM item_images WHERE tag_id = ? AND image_type = ? AND slot = ?",
+            (img.tag_id, img.image_type, img.slot),
+        )
+        row = cursor.fetchone()
+        conn.close()
+        return row["id"] if row else 0
+
+    def get_item_images_for_tag(self, tag_id: str) -> List[ItemImage]:
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """SELECT * FROM item_images
+               WHERE tag_id = ?
+               ORDER BY CASE image_type WHEN 'huid' THEN 0 ELSE 1 END, slot""",
+            (tag_id,),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+        return [
+            ItemImage(
+                id=row["id"],
+                batch_item_id=row["batch_item_id"],
+                tag_id=row["tag_id"],
+                image_type=row["image_type"],
+                slot=row["slot"],
+                s3_key=row["s3_key"],
+                s3_bucket=row["s3_bucket"] or "",
+                content_type=row["content_type"],
+                size_bytes=row["size_bytes"],
+                uploaded_at=datetime.fromisoformat(row["uploaded_at"]) if row["uploaded_at"] else None,
+            )
+            for row in rows
+        ]
+
+    def get_item_image(self, tag_id: str, image_type: str, slot: int) -> Optional[ItemImage]:
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "SELECT * FROM item_images WHERE tag_id = ? AND image_type = ? AND slot = ?",
+            (tag_id, image_type, slot),
+        )
+        row = cursor.fetchone()
+        conn.close()
+        if not row:
+            return None
+        return ItemImage(
+            id=row["id"],
+            batch_item_id=row["batch_item_id"],
+            tag_id=row["tag_id"],
+            image_type=row["image_type"],
+            slot=row["slot"],
+            s3_key=row["s3_key"],
+            s3_bucket=row["s3_bucket"] or "",
+            content_type=row["content_type"],
+            size_bytes=row["size_bytes"],
+            uploaded_at=datetime.fromisoformat(row["uploaded_at"]) if row["uploaded_at"] else None,
+        )
+
+    def delete_item_image(self, tag_id: str, image_type: str, slot: int) -> bool:
+        conn = self._get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM item_images WHERE tag_id = ? AND image_type = ? AND slot = ?",
+            (tag_id, image_type, slot),
+        )
+        changed = cursor.rowcount
+        conn.commit()
+        conn.close()
+        return changed > 0
 
     def update_ocr_result_decision(
         self,
