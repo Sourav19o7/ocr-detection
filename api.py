@@ -71,6 +71,7 @@ from database import (
     DatabaseManager, get_database, Batch, BatchItem, OCRResult as DBOCRResult,
     ItemImage, ProcessingStatus, QCDecision
 )
+from batch_parse import ParseError, parse_batch_file
 from storage_service import StorageService, get_storage
 
 
@@ -187,11 +188,19 @@ def get_s3_client():
 
 
 # Response Models
+class RejectedRowResponse(BaseModel):
+    row: int
+    tag_id: str
+    reason: str
+
+
 class BatchUploadResponse(BaseModel):
     status: str
-    batch_id: int
-    batch_name: str
-    total_items: int
+    batch_id: Optional[int] = None
+    batch_name: Optional[str] = None
+    total_rows: int
+    accepted: int
+    rejected: List[RejectedRowResponse] = []
     message: str
 
 
@@ -286,160 +295,76 @@ async def health():
 @app.post("/stage1/upload-batch", response_model=BatchUploadResponse)
 async def upload_batch(
     file: UploadFile = File(...),
-    batch_name: Optional[str] = Form(None)
+    batch_name: Optional[str] = Form(None),
+    strict: bool = Query(False, description="When true, reject the whole batch if any row is invalid."),
 ):
+    """Stage 1: Upload a CSV/Excel file of tag IDs + expected HUIDs.
+
+    * Accepts ``.csv``, ``.xlsx``, ``.xls`` (415 otherwise).
+    * Excel: auto-selects a sheet named ``HUID``/``PRINT`` (case-insensitive) or the first sheet.
+    * Headers are normalized case/whitespace-insensitively; aliases like ``tag no``, ``HUID ID``, ``tag_number`` are mapped.
+    * Validates each row. ``strict=true`` rejects the whole batch on any invalid row (422); otherwise valid rows are inserted and invalid rows returned.
     """
-    Stage 1: Upload CSV/Excel file with tag IDs and expected HUIDs.
-
-    The file should have at least two columns:
-    - tag_id: Unique identifier for each item
-    - expected_huid: The expected HUID to validate against
-
-    Supported formats: CSV, XLSX, XLS
-    """
-    # Validate file type
-    allowed_types = [
-        "text/csv",
-        "application/vnd.ms-excel",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    ]
-    filename_lower = file.filename.lower()
-
-    if file.content_type not in allowed_types and not (
-        filename_lower.endswith(".csv") or
-        filename_lower.endswith(".xlsx") or
-        filename_lower.endswith(".xls")
-    ):
-        raise HTTPException(
-            status_code=400,
-            detail="Invalid file type. Allowed: CSV, XLSX, XLS"
-        )
+    contents = await file.read()
 
     try:
-        contents = await file.read()
-
-        # Parse file based on type
-        if filename_lower.endswith(".csv"):
-            df = pd.read_csv(io.BytesIO(contents))
-        else:
-            # For Excel files, try multiple methods to handle compatibility issues
-            try:
-                # Try with openpyxl first (for .xlsx files)
-                excel_file = pd.ExcelFile(io.BytesIO(contents), engine='openpyxl')
-                sheet_names = excel_file.sheet_names
-
-                # Try to find a sheet with 'HUID' in the name
-                huid_sheet = None
-                for sheet in sheet_names:
-                    if 'HUID' in sheet.upper() or 'PRINT' in sheet.upper():
-                        huid_sheet = sheet
-                        break
-
-                # Read the HUID sheet if found, otherwise read the first sheet
-                if huid_sheet:
-                    df = pd.read_excel(io.BytesIO(contents), sheet_name=huid_sheet, engine='openpyxl')
-                else:
-                    df = pd.read_excel(io.BytesIO(contents), sheet_name=0, engine='openpyxl')
-
-            except Exception as openpyxl_error:
-                # If openpyxl fails due to styling issues, read with data_only mode
-                try:
-                    from openpyxl import load_workbook
-                    wb = load_workbook(io.BytesIO(contents), data_only=True, read_only=True)
-
-                    # Find HUID sheet
-                    huid_sheet_name = None
-                    for sheet_name in wb.sheetnames:
-                        if 'HUID' in sheet_name.upper() or 'PRINT' in sheet_name.upper():
-                            huid_sheet_name = sheet_name
-                            break
-
-                    # Use the HUID sheet or first sheet
-                    ws = wb[huid_sheet_name] if huid_sheet_name else wb[wb.sheetnames[0]]
-
-                    # Convert to dataframe
-                    data = []
-                    for row in ws.iter_rows(values_only=True):
-                        if row and any(cell is not None for cell in row):  # Skip empty rows
-                            data.append(row)
-
-                    if len(data) < 2:  # Need at least header + 1 data row
-                        raise HTTPException(status_code=400, detail="Excel file has insufficient data")
-
-                    df = pd.DataFrame(data[1:], columns=data[0])
-
-                except Exception as fallback_error:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Failed to read Excel file. Try saving as a new .xlsx file or export to CSV. Original error: {str(openpyxl_error)}"
-                    )
-
-        # Normalize column names
-        df.columns = df.columns.str.lower().str.strip().str.replace(" ", "_")
-
-        # Validate required columns
-        required_columns = ["tag_id", "expected_huid"]
-        # Also check for common variations
-        column_mappings = {
-            "tag_id": ["tag_id", "tagid", "tag", "id", "item_id", "ahc_tag", "ahc_tag_id"],
-            "expected_huid": ["expected_huid", "huid", "expected_id", "expectedhuid", "laser_printing_mark", "laser_print", "laser_mark"]
-        }
-
-        for req_col, variations in column_mappings.items():
-            found = False
-            for var in variations:
-                if var in df.columns:
-                    if var != req_col:
-                        df = df.rename(columns={var: req_col})
-                    found = True
-                    break
-            if not found:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Missing required column: {req_col}. Found columns: {list(df.columns)}"
-                )
-
-        # Remove duplicates and empty rows
-        df = df.dropna(subset=["tag_id", "expected_huid"])
-        df = df.drop_duplicates(subset=["tag_id"])
-
-        if len(df) == 0:
-            raise HTTPException(
-                status_code=400,
-                detail="No valid rows found in the file"
-            )
-
-        # Create batch
-        batch_name = batch_name or f"Batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        batch = Batch(
-            batch_name=batch_name,
-            total_items=len(df),
-            status="pending"
-        )
-        batch_id = db.create_batch(batch)
-
-        # Create batch items
-        for _, row in df.iterrows():
-            item = BatchItem(
-                batch_id=batch_id,
-                tag_id=str(row["tag_id"]).strip(),
-                expected_huid=str(row["expected_huid"]).strip().upper(),
-                status=ProcessingStatus.PENDING
-            )
-            db.create_batch_item(item)
-
-        return BatchUploadResponse(
-            status="success",
-            batch_id=batch_id,
-            batch_name=batch_name,
-            total_items=len(df),
-            message=f"Successfully uploaded {len(df)} items"
+        parsed = parse_batch_file(contents, file.filename or "")
+    except ParseError as e:
+        return JSONResponse(
+            status_code=e.status_code,
+            content={"detail": e.message, **e.extra},
         )
 
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to process file: {str(e)}")
+    if strict and parsed.rejected:
+        return JSONResponse(
+            status_code=422,
+            content={
+                "status": "rejected",
+                "batch_id": None,
+                "batch_name": None,
+                "total_rows": parsed.total_rows,
+                "accepted": 0,
+                "rejected": [r.to_dict() for r in parsed.rejected],
+                "message": "strict mode: batch rejected because some rows failed validation",
+            },
+        )
+
+    if not parsed.accepted:
+        return JSONResponse(
+            status_code=422,
+            content={
+                "status": "rejected",
+                "batch_id": None,
+                "batch_name": None,
+                "total_rows": parsed.total_rows,
+                "accepted": 0,
+                "rejected": [r.to_dict() for r in parsed.rejected],
+                "message": "no valid rows found in the file",
+            },
+        )
+
+    resolved_name = batch_name or (file.filename or f"Batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+    items = [
+        BatchItem(
+            batch_id=0,  # set by create_batch_with_items
+            tag_id=row.tag_id,
+            expected_huid=row.expected_huid,
+            status=ProcessingStatus.PENDING,
+        )
+        for row in parsed.accepted
+    ]
+    batch = Batch(batch_name=resolved_name, total_items=len(items), status="pending")
+    batch_id = db.create_batch_with_items(batch, items)
+
+    return BatchUploadResponse(
+        status="success",
+        batch_id=batch_id,
+        batch_name=resolved_name,
+        total_rows=parsed.total_rows,
+        accepted=len(parsed.accepted),
+        rejected=[RejectedRowResponse(**r.to_dict()) for r in parsed.rejected],
+        message=f"Uploaded {len(parsed.accepted)} of {parsed.total_rows} rows",
+    )
 
 
 @app.get("/stage1/batches")

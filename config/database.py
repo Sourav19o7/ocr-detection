@@ -357,6 +357,51 @@ class DatabaseManager:
         conn.close()
         return item_id
 
+    def create_batch_with_items(self, batch: Batch, items: List[BatchItem]) -> int:
+        """Atomically create a batch and its items.
+
+        Uses a single transaction so callers either get a fully-populated
+        batch or no batch at all. Raises on any integrity error after
+        rolling back.
+        """
+        conn = self._get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("BEGIN")
+            cursor.execute(
+                """INSERT INTO batches (batch_name, total_items, status, metadata)
+                   VALUES (?, ?, ?, ?)""",
+                (
+                    batch.batch_name,
+                    len(items),
+                    batch.status,
+                    json.dumps(batch.metadata),
+                ),
+            )
+            batch_id = cursor.lastrowid
+            for item in items:
+                cursor.execute(
+                    """INSERT OR REPLACE INTO batch_items
+                       (batch_id, tag_id, expected_huid, status, image_path, image_url, metadata)
+                       VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        batch_id,
+                        item.tag_id,
+                        item.expected_huid,
+                        item.status.value if isinstance(item.status, ProcessingStatus) else item.status,
+                        item.image_path,
+                        item.image_url,
+                        json.dumps(item.metadata),
+                    ),
+                )
+            conn.commit()
+            return batch_id
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
     def get_batch_item_by_tag(self, tag_id: str) -> Optional[BatchItem]:
         """Get a batch item by tag ID."""
         conn = self._get_connection()
