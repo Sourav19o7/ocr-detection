@@ -17,6 +17,7 @@ from PIL import Image
 # Try to import boto3, fall back gracefully if not available
 try:
     import boto3
+    from botocore.config import Config as BotocoreConfig
     from botocore.exceptions import ClientError
     BOTO3_AVAILABLE = True
 except ImportError:
@@ -56,6 +57,7 @@ class StorageService:
                 aws_access_key_id=self.config.access_key_id,
                 aws_secret_access_key=self.config.secret_access_key,
                 region_name=self.config.region,
+                config=BotocoreConfig(signature_version="s3v4"),
             )
         except Exception as e:
             print(f"Warning: Failed to initialize S3 client: {e}")
