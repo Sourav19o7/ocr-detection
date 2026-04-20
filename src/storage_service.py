@@ -52,14 +52,17 @@ class StorageService:
             return
 
         try:
+            endpoint = f"https://s3.{self.config.region}.amazonaws.com"
+            print(f"[S3 init] region={self.config.region} bucket={self.config.s3_bucket} endpoint={endpoint} key_id={self.config.access_key_id[:6] if self.config.access_key_id else 'MISSING'}...")
             self._s3_client = boto3.client(
                 "s3",
                 aws_access_key_id=self.config.access_key_id,
                 aws_secret_access_key=self.config.secret_access_key,
                 region_name=self.config.region,
-                endpoint_url=f"https://s3.{self.config.region}.amazonaws.com",
+                endpoint_url=endpoint,
                 config=BotocoreConfig(signature_version="s3v4"),
             )
+            print("[S3 init] client created OK")
         except Exception as e:
             print(f"Warning: Failed to initialize S3 client: {e}")
             self.use_s3 = False
@@ -169,15 +172,19 @@ class StorageService:
     def presign_get(self, key: str, expiration: int = 3600) -> Optional[str]:
         """Presigned GET URL (S3) or local /uploads URL for dev."""
         if not self.use_s3:
+            print(f"[presign_get] local mode, key={key}")
             return f"/uploads/{key}"
+        print(f"[presign_get] bucket={self.config.s3_bucket} region={self.config.region} key={key}")
         try:
-            return self._s3_client.generate_presigned_url(
+            url = self._s3_client.generate_presigned_url(
                 "get_object",
                 Params={"Bucket": self.config.s3_bucket, "Key": key},
                 ExpiresIn=expiration,
             )
+            print(f"[presign_get] generated url prefix: {url[:80]}")
+            return url
         except Exception as e:
-            print(f"Failed to presign GET: {e}")
+            print(f"[presign_get] ERROR: {e}")
             return None
 
     def presign_put(
