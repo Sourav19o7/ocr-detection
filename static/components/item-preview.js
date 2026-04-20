@@ -6,6 +6,7 @@ import { toast } from "./toast.js";
 import {
   html, raw, escapeHtml, refreshIcons, icon,
   decisionChip, statusChip, formatConfidence, formatDate,
+  composedActualHuid,
 } from "../lib/format.js";
 
 export async function mountItemPreview(el, { tagId, compact = false } = {}) {
@@ -80,7 +81,7 @@ function render(el, data, { compact }) {
             <div class="equals ${data.huid_match === true ? "ok" : data.huid_match === false ? "bad" : ""}">
               ${raw(data.huid_match === true ? '<i data-lucide="check"></i>' : data.huid_match === false ? '<i data-lucide="x"></i>' : '<i data-lucide="minus"></i>')}
             </div>
-            <div class="slot"><span class="lbl">Actual</span>${escapeHtml(data.actual_huid || "—")}</div>
+            <div class="slot"><span class="lbl">Actual</span>${escapeHtml(composedActualHuid(data) || "—")}</div>
           </div>
           <div class="meta-row"><span class="k">Confidence</span><span class="v">${formatConfidence(data.confidence)}</span></div>
           ${raw(confidenceBar(data.confidence))}

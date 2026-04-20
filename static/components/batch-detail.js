@@ -3,7 +3,7 @@ import { drawer } from "./drawer.js";
 import { mountItemPreview } from "./item-preview.js";
 import {
   html, raw, refreshIcons, icon, escapeHtml,
-  decisionChip, statusChip,
+  decisionChip, statusChip, composedActualHuid,
 } from "../lib/format.js";
 
 export async function mountBatchDetail(el, { batchId }) {
@@ -151,7 +151,7 @@ function renderItemRow(r) {
     <td>${thumb}</td>
     <td class="mono">${escapeHtml(r.tag_id)}</td>
     <td class="mono">${escapeHtml(r.expected_huid || "")}</td>
-    <td class="mono">${escapeHtml(r.actual_huid || "—")}</td>
+    <td class="mono">${escapeHtml(composedActualHuid(r) || "—")}</td>
     <td>${match}</td>
     <td>${escapeHtml(r.purity_code || "—")}</td>
     <td>${decisionChip(r.decision)}</td>

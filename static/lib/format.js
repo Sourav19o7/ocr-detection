@@ -45,6 +45,17 @@ export function statusChip(status) {
   return `<span class="${s.cls}">${s.label}</span>`;
 }
 
+// The OCR engine returns just the 6-char BIS HUID (the only field actually
+// encoded in the HUID mark). expected_huid on the batch is a composite
+// "{karat}{purity_code}{HUID}" like "22K916YY6DUG". To make the two sides
+// directly comparable in the UI, join karat + purity_code in front of the
+// raw HUID when they're present.
+export function composedActualHuid({ actual_huid, karat, purity_code } = {}) {
+  if (!actual_huid) return null;
+  const prefix = `${karat || ""}${purity_code || ""}`;
+  return prefix ? `${prefix}${actual_huid}` : actual_huid;
+}
+
 export function escapeHtml(str) {
   if (str == null) return "";
   return String(str)
