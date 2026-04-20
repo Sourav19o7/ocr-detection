@@ -3,6 +3,7 @@
 
 import { api } from "../api.js";
 import { toast } from "./toast.js";
+import { modal } from "./modal.js";
 import {
   html, raw, escapeHtml, refreshIcons, icon,
   decisionChip, statusChip, formatConfidence, formatDate,
@@ -129,45 +130,109 @@ function render(el, data, { compact }) {
   if (!compact) wireDecisionBar(el, data);
 }
 
+// Preset rejection reasons for the dropdown. Keep snake_case values so they
+// round-trip through the DB cleanly; labels are what operators see.
+const REJECT_REASONS = [
+  { value: "blurry_image",        label: "Blurry / out of focus" },
+  { value: "huid_mismatch",       label: "HUID mismatch" },
+  { value: "missing_huid",        label: "Missing HUID" },
+  { value: "missing_purity_mark", label: "Missing purity mark" },
+  { value: "wrong_karat",         label: "Wrong karat / purity" },
+  { value: "damaged_item",        label: "Damaged item" },
+  { value: "illegible_markings",  label: "Illegible markings" },
+  { value: "wrong_tag",           label: "Wrong tag mapping" },
+  { value: "other",               label: "Other…" },
+];
+
 function wireDecisionBar(el, data) {
   const bar = el.querySelector(".action-bar");
   if (!bar) return;
   bar.querySelectorAll("button[data-action]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
-      const decision = btn.dataset.action;
-
-      // Reject prompts for a reason so the rejection_reasons list is meaningful.
-      // Cancel on the prompt aborts; empty string means "no specific reason".
-      let rejection_reasons;
-      if (decision === "rejected") {
-        const reason = prompt(`Reason for rejecting ${data.tag_id}? (optional)`, "");
-        if (reason === null) return;
-        rejection_reasons = reason.trim()
-          ? [...(data.rejection_reasons || []), reason.trim()]
-          : data.rejection_reasons;
-      } else if (decision === "manual_review") {
-        rejection_reasons = [...(data.rejection_reasons || []), "needs_recapture"];
-      }
-
-      const original = btn.innerHTML;
-      bar.querySelectorAll("button").forEach((b) => b.setAttribute("aria-disabled", "true"));
-      btn.innerHTML = "Saving…";
-      try {
-        await api.post(`/stage3/item/${encodeURIComponent(data.tag_id)}/decision`, {
-          decision,
-          rejection_reasons,
-        });
-        toast.success(`Marked as ${decision.replace("_", " ")}`);
-        // Reload so the decision chip, rejection-reasons list, and any batch
-        // lists that link here all pick up the new state.
-        location.reload();
-      } catch (e) {
-        toast.error(e.message || "Could not update decision");
-        bar.querySelectorAll("button").forEach((b) => b.removeAttribute("aria-disabled"));
-        btn.innerHTML = original;
-      }
-    });
+    btn.addEventListener("click", () => handleDecision(el, bar, btn, data));
   });
+}
+
+function handleDecision(root, bar, btn, data) {
+  const decision = btn.dataset.action;
+
+  if (decision === "rejected") {
+    openRejectModal(data, (reasons) => submitDecision(bar, btn, data, decision, reasons));
+    return;
+  }
+  if (decision === "manual_review") {
+    const reasons = [...(data.rejection_reasons || []), "needs_recapture"];
+    submitDecision(bar, btn, data, decision, reasons);
+    return;
+  }
+  // Approve — clear any previous rejection reasons.
+  submitDecision(bar, btn, data, decision, []);
+}
+
+function openRejectModal(data, onConfirm) {
+  modal.open({
+    title: `Reject ${data.tag_id}`,
+    width: 480,
+    body: (el) => {
+      el.innerHTML = `
+        <div class="form-row">
+          <label for="rej-reason">Reason</label>
+          <select id="rej-reason">
+            ${REJECT_REASONS.map(r => `<option value="${r.value}">${r.label}</option>`).join("")}
+          </select>
+        </div>
+        <div class="form-row" id="rej-other-wrap" style="display:none">
+          <label for="rej-other">Describe</label>
+          <input id="rej-other" type="text" placeholder="Short note" maxlength="200" />
+        </div>
+        <p class="muted" style="font-size:12px; margin: 12px 0 0;">
+          Existing reasons on this item will be preserved; your selection is appended.
+        </p>
+      `;
+      const select = el.querySelector("#rej-reason");
+      const otherWrap = el.querySelector("#rej-other-wrap");
+      select.addEventListener("change", () => {
+        otherWrap.style.display = select.value === "other" ? "flex" : "none";
+        if (select.value === "other") el.querySelector("#rej-other").focus();
+      });
+    },
+    footer: (el) => {
+      el.innerHTML = `
+        <button class="btn btn-tertiary" id="rej-cancel">Cancel</button>
+        <button class="btn btn-danger"   id="rej-confirm">Reject</button>
+      `;
+      el.querySelector("#rej-cancel").addEventListener("click", () => modal.close());
+      el.querySelector("#rej-confirm").addEventListener("click", () => {
+        const value = document.querySelector("#rej-reason").value;
+        let reason = value;
+        if (value === "other") {
+          const text = (document.querySelector("#rej-other").value || "").trim();
+          if (!text) { toast.error("Add a short note or pick a preset reason"); return; }
+          reason = text;
+        }
+        const reasons = [...(data.rejection_reasons || []), reason];
+        modal.close();
+        onConfirm(reasons);
+      });
+    },
+  });
+}
+
+async function submitDecision(bar, btn, data, decision, rejection_reasons) {
+  const original = btn.innerHTML;
+  bar.querySelectorAll("button").forEach((b) => b.setAttribute("aria-disabled", "true"));
+  btn.innerHTML = "Saving…";
+  try {
+    await api.post(`/stage3/item/${encodeURIComponent(data.tag_id)}/decision`, {
+      decision,
+      rejection_reasons,
+    });
+    toast.success(`Marked as ${decision.replace("_", " ")}`);
+    location.reload();
+  } catch (e) {
+    toast.error(e.message || "Could not update decision");
+    bar.querySelectorAll("button").forEach((b) => b.removeAttribute("aria-disabled"));
+    btn.innerHTML = original;
+  }
 }
 
 function tile({ type, slot, image, label, active = false }) {

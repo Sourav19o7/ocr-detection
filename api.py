@@ -134,6 +134,17 @@ static_dir = "./static"
 if os.path.isdir(static_dir):
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
+
+@app.middleware("http")
+async def _no_cache_static(request, call_next):
+    """Force revalidation on static assets so stale CSS/JS can't bite users
+    after an edit. ETag + Last-Modified still make 304 responses cheap."""
+    response = await call_next(request)
+    path = request.url.path
+    if path.startswith("/static/") or path == "/":
+        response.headers["Cache-Control"] = "no-cache, must-revalidate"
+    return response
+
 # Initialize OCR engines at startup
 ocr_engine_v2 = None
 db: DatabaseManager = None
