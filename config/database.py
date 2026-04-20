@@ -553,7 +553,11 @@ class DatabaseManager:
                    ocr.rejection_reasons, ocr.raw_ocr_text,
                    ocr.processed_image_path, ocr.processed_image_url
             FROM batch_items bi
-            LEFT JOIN ocr_results ocr ON bi.id = ocr.batch_item_id
+            LEFT JOIN ocr_results ocr
+                   ON ocr.id = (SELECT id FROM ocr_results
+                                 WHERE tag_id = bi.tag_id
+                                 ORDER BY created_at DESC
+                                 LIMIT 1)
             WHERE bi.batch_id = ?
             ORDER BY bi.id
         """, (batch_id,))
@@ -595,9 +599,12 @@ class DatabaseManager:
                    ocr.processing_time_ms, ocr.created_at as processed_at
             FROM batch_items bi
             LEFT JOIN batches b ON bi.batch_id = b.id
-            LEFT JOIN ocr_results ocr ON bi.id = ocr.batch_item_id
+            LEFT JOIN ocr_results ocr
+                   ON ocr.id = (SELECT id FROM ocr_results
+                                 WHERE tag_id = bi.tag_id
+                                 ORDER BY created_at DESC
+                                 LIMIT 1)
             WHERE bi.tag_id = ?
-            ORDER BY ocr.created_at DESC
             LIMIT 1
         """, (tag_id,))
         row = cursor.fetchone()

@@ -309,7 +309,7 @@ h3 { font-size: 14px; color: var(--text-muted); text-transform: uppercase; lette
   align-items: start;
 }
 @media (max-width: 900px) { .twocol { grid-template-columns: 1fr; } }
-.filter-rail { padding: var(--space-4); }
+.filter-rail { padding: var(--space-4); overflow: hidden; }
 .filter-rail h3 { margin-bottom: var(--space-3); }
 .filter-rail .group { margin-bottom: var(--space-4); }
 .filter-rail label {
@@ -317,6 +317,20 @@ h3 { font-size: 14px; color: var(--text-muted); text-transform: uppercase; lette
   font-size: 13px; padding: 3px 0;
 }
 .filter-rail input[type="checkbox"] { accent-color: var(--accent); }
+/* Native <select> in a narrow rail: long option text can push the
+   control wider than the container. Force it to stay inside and
+   let the rendered label truncate. */
+.filter-rail select,
+.filter-rail .select,
+.filter-rail .input,
+.filter-rail .search {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  text-overflow: ellipsis;
+}
+.filter-rail select option { max-width: 100%; }
 
 /* --- preview screen ------------------------------------------------------- */
 

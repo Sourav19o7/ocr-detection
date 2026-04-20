@@ -117,15 +117,57 @@ function render(el, data, { compact }) {
 
     ${raw(compact ? "" : `
       <div class="action-bar" role="toolbar" aria-label="Item actions">
-        <button class="btn btn-tertiary">Request re-capture</button>
-        <button class="btn btn-danger">Reject</button>
-        <button class="btn btn-primary">Approve</button>
+        <button class="btn btn-tertiary" data-action="manual_review">Request re-capture</button>
+        <button class="btn btn-danger"   data-action="rejected">Reject</button>
+        <button class="btn btn-primary"  data-action="approved">Approve</button>
       </div>
     `)}
   `;
 
   refreshIcons(el);
   wireGallery(el, { tagId: data.tag_id, huid, bySlot });
+  if (!compact) wireDecisionBar(el, data);
+}
+
+function wireDecisionBar(el, data) {
+  const bar = el.querySelector(".action-bar");
+  if (!bar) return;
+  bar.querySelectorAll("button[data-action]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const decision = btn.dataset.action;
+
+      // Reject prompts for a reason so the rejection_reasons list is meaningful.
+      // Cancel on the prompt aborts; empty string means "no specific reason".
+      let rejection_reasons;
+      if (decision === "rejected") {
+        const reason = prompt(`Reason for rejecting ${data.tag_id}? (optional)`, "");
+        if (reason === null) return;
+        rejection_reasons = reason.trim()
+          ? [...(data.rejection_reasons || []), reason.trim()]
+          : data.rejection_reasons;
+      } else if (decision === "manual_review") {
+        rejection_reasons = [...(data.rejection_reasons || []), "needs_recapture"];
+      }
+
+      const original = btn.innerHTML;
+      bar.querySelectorAll("button").forEach((b) => b.setAttribute("aria-disabled", "true"));
+      btn.innerHTML = "Saving…";
+      try {
+        await api.post(`/stage3/item/${encodeURIComponent(data.tag_id)}/decision`, {
+          decision,
+          rejection_reasons,
+        });
+        toast.success(`Marked as ${decision.replace("_", " ")}`);
+        // Reload so the decision chip, rejection-reasons list, and any batch
+        // lists that link here all pick up the new state.
+        location.reload();
+      } catch (e) {
+        toast.error(e.message || "Could not update decision");
+        bar.querySelectorAll("button").forEach((b) => b.removeAttribute("aria-disabled"));
+        btn.innerHTML = original;
+      }
+    });
+  });
 }
 
 function tile({ type, slot, image, label, active = false }) {

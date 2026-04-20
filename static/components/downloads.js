@@ -275,7 +275,7 @@ function renderFolder(tag, selected) {
             <strong class="mono">${escapeHtml(tag.tag_id)}</strong>
             <span class="muted" style="font-size:12px">${escapeHtml(tag.batch_name || "")}</span>
           </div>
-          <div class="row" style="gap:6px; margin-top:4px; font-size:12px;">${raw(chips)}</div>
+          <div class="row" style="gap:6px; margin-top:4px; font-size:12px;">${chips}</div>
         </div>
         <span class="folder-meta mono muted">${count} ${count === 1 ? "image" : "images"} · ${size}</span>
         <button class="btn btn-secondary btn-sm" data-tag-download="${escapeHtml(tag.tag_id)}">

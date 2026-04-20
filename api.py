@@ -809,6 +809,54 @@ async def get_item_detail(tag_id: str):
     }
 
 
+class DecisionRequest(BaseModel):
+    decision: str  # "approved" | "rejected" | "manual_review"
+    rejection_reasons: Optional[List[str]] = None
+    reviewer: Optional[str] = None
+
+
+@app.post("/stage3/item/{tag_id}/decision")
+async def set_item_decision(tag_id: str, body: DecisionRequest):
+    """Operator action from the item preview — approve / reject / re-capture."""
+    # Validate decision enum
+    try:
+        decision_enum = QCDecision(body.decision)
+    except ValueError:
+        allowed = [d.value for d in QCDecision]
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid decision '{body.decision}'. Allowed: {allowed}",
+        )
+
+    # Confirm the tag exists and has an OCR result to update
+    existing = db.get_ocr_result_by_tag(tag_id)
+    if not existing:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No OCR result for tag '{tag_id}'. Upload a HUID image first.",
+        )
+
+    # Merge rejection_reasons: if reviewer passed any, use those; otherwise
+    # keep what was already there.
+    reasons = body.rejection_reasons
+    if reasons is None:
+        reasons = existing.rejection_reasons
+
+    db.update_ocr_result_decision(
+        tag_id=tag_id,
+        decision=decision_enum,
+        rejection_reasons=reasons,
+        reviewer=body.reviewer,
+    )
+
+    return {
+        "status": "success",
+        "tag_id": tag_id,
+        "decision": decision_enum.value,
+        "rejection_reasons": reasons,
+    }
+
+
 @app.get("/stage3/result/{tag_id}", response_model=ResultResponse)
 async def get_result_by_tag(tag_id: str):
     """
