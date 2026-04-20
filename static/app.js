@@ -5,6 +5,7 @@ import { mountBatches } from "./components/batches-table.js";
 import { mountBatchDetail } from "./components/batch-detail.js";
 import { mountItemPreview } from "./components/item-preview.js";
 import { mountUpload } from "./components/upload-flow.js";
+import { mountDownloads } from "./components/downloads.js";
 import { toast } from "./components/toast.js";
 import { drawer } from "./components/drawer.js";
 
@@ -16,6 +17,7 @@ const routes = [
   { pattern: /^#\/batch\/([^/]+)$/,        view: (m) => render({ crumbs: [{label:"Batches", href:"#/batches"}, {label:`Batch ${decodeURIComponent(m[1])}`}] }, (el)=>mountBatchDetail(el, { batchId: decodeURIComponent(m[1]) })) },
   { pattern: /^#\/item\/([^/]+)$/,         view: (m) => render({ crumbs: [{label:"Batches", href:"#/batches"}, {label:decodeURIComponent(m[1])}] }, (el)=>mountItemPreview(el, { tagId: decodeURIComponent(m[1]) })) },
   { pattern: /^#\/upload$/,                view: () => render({ crumbs: [{label:"Batches", href:"#/batches"}, {label:"Upload"}] }, mountUpload) },
+  { pattern: /^#\/downloads$/,             view: () => render({ crumbs: [{label:"Batches", href:"#/batches"}, {label:"Downloads"}] }, mountDownloads) },
 ];
 
 function render(opts, mountFn) {

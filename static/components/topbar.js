@@ -18,6 +18,7 @@ export function mountTopbar(el, { breadcrumbs = [] } = {}) {
         <input id="topbar-search" placeholder="Search by tag id…" />
         <kbd>/</kbd>
       </label>
+      <a class="btn btn-secondary" href="#/downloads">${icon("download")}Downloads</a>
       <a class="btn btn-primary" href="#/upload">${icon("upload")}Upload batch</a>
     </div>
   `;

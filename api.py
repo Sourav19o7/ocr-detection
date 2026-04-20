@@ -52,6 +52,7 @@ from PIL import Image
 from datetime import datetime
 from starlette.middleware.sessions import SessionMiddleware
 import io
+import json
 import time
 import pandas as pd
 import boto3
@@ -1097,6 +1098,188 @@ async def validate_huid(huid: str = Form(...)):
             "Must contain at least one letter" if not re.search(r'[A-Z]', cleaned) else None,
         ]
     }
+
+
+# =============================================================================
+# Downloads dashboard — folder-per-tag manifest + zip export
+# =============================================================================
+
+import io as _io
+import zipfile as _zipfile
+from fastapi.responses import StreamingResponse as _StreamingResponse
+
+
+def _downloads_query(
+    *,
+    batch_id: Optional[int] = None,
+    status_filter: Optional[List[str]] = None,
+    decision_filter: Optional[List[str]] = None,
+    match: Optional[str] = None,   # 'yes' | 'no' | None
+    q: Optional[str] = None,
+    limit_tags: Optional[List[str]] = None,
+) -> List[dict]:
+    """Return every tag that has at least one image, with its images + metadata.
+
+    Filters are applied at the SQL level where cheap; tag-substring search
+    and image attachment happen in Python so the joins stay simple.
+    """
+    conn = db._get_connection()
+    try:
+        params: list = []
+        clauses: list[str] = ["EXISTS (SELECT 1 FROM item_images ii WHERE ii.tag_id = bi.tag_id)"]
+        if batch_id is not None:
+            clauses.append("bi.batch_id = ?"); params.append(batch_id)
+        if status_filter:
+            placeholders = ",".join("?" * len(status_filter))
+            clauses.append(f"bi.status IN ({placeholders})")
+            params.extend(status_filter)
+        if q:
+            clauses.append("bi.tag_id LIKE ?")
+            params.append(f"%{q}%")
+        if limit_tags:
+            placeholders = ",".join("?" * len(limit_tags))
+            clauses.append(f"bi.tag_id IN ({placeholders})")
+            params.extend(limit_tags)
+
+        rows = conn.execute(
+            f"""
+            SELECT bi.tag_id, bi.batch_id, bi.expected_huid, bi.status,
+                   b.batch_name,
+                   ocr.actual_huid, ocr.huid_match, ocr.decision,
+                   ocr.rejection_reasons
+              FROM batch_items bi
+              LEFT JOIN batches b ON bi.batch_id = b.id
+              LEFT JOIN ocr_results ocr
+                ON ocr.id = (
+                     SELECT id FROM ocr_results
+                      WHERE tag_id = bi.tag_id
+                      ORDER BY created_at DESC LIMIT 1
+                   )
+             WHERE {' AND '.join(clauses)}
+             ORDER BY bi.tag_id
+            """,
+            params,
+        ).fetchall()
+    finally:
+        conn.close()
+
+    # Decision + match filters happen post-query to keep SQL simple.
+    tags: list[dict] = []
+    for row in rows:
+        decision = row["decision"]
+        huid_match = None if row["huid_match"] is None else bool(row["huid_match"])
+        if decision_filter and decision not in decision_filter:
+            continue
+        if match == "yes" and huid_match is not True:
+            continue
+        if match == "no" and huid_match is not False:
+            continue
+        tags.append({
+            "tag_id": row["tag_id"],
+            "batch_id": row["batch_id"],
+            "batch_name": row["batch_name"],
+            "expected_huid": row["expected_huid"],
+            "actual_huid": row["actual_huid"],
+            "huid_match": huid_match,
+            "status": row["status"],
+            "decision": decision,
+            "rejection_reasons": json.loads(row["rejection_reasons"] or "[]") if row["rejection_reasons"] else [],
+        })
+
+    # Attach images per tag and compute aggregates.
+    for t in tags:
+        images = db.get_item_images_for_tag(t["tag_id"])
+        t["images"] = [
+            {
+                "image_type": img.image_type,
+                "slot": img.slot,
+                "s3_key": img.s3_key,
+                "filename": os.path.basename(img.s3_key),
+                "size_bytes": img.size_bytes,
+                "content_type": img.content_type,
+                "uploaded_at": img.uploaded_at.isoformat() if img.uploaded_at else None,
+                "url": storage.presign_get(img.s3_key),
+            }
+            for img in images
+        ]
+        t["image_count"] = len(t["images"])
+        t["total_size_bytes"] = sum(img.get("size_bytes") or 0 for img in t["images"])
+    return tags
+
+
+@app.get("/stage3/downloads/manifest")
+async def downloads_manifest(
+    batch_id: Optional[int] = Query(None),
+    status: Optional[List[str]] = Query(None, description="Repeat for multiple values"),
+    decision: Optional[List[str]] = Query(None, description="Repeat for multiple values"),
+    match: Optional[str] = Query(None, pattern="^(yes|no)?$"),
+    q: Optional[str] = Query(None, description="Tag ID substring search"),
+):
+    """Filtered list of tags (with images) for the downloads screen."""
+    tags = _downloads_query(
+        batch_id=batch_id,
+        status_filter=status,
+        decision_filter=decision,
+        match=match if match else None,
+        q=q.strip() if q else None,
+    )
+    total_images = sum(t["image_count"] for t in tags)
+    total_bytes = sum(t["total_size_bytes"] for t in tags)
+    return {
+        "count": len(tags),
+        "total_images": total_images,
+        "total_size_bytes": total_bytes,
+        "tags": tags,
+    }
+
+
+def _build_zip_response(tag_ids: List[str]) -> _StreamingResponse:
+    """Build a zip of every image for the given tags (folder per tag).
+
+    File names preserve their on-disk name ({uuid}{ext}) so they remain
+    traceable back to the original S3 key. Tags that are missing on disk
+    are silently skipped rather than failing the whole zip.
+    """
+    if not tag_ids:
+        raise HTTPException(status_code=400, detail="tag_ids is empty")
+
+    buf = _io.BytesIO()
+    included = 0
+    with _zipfile.ZipFile(buf, "w", _zipfile.ZIP_DEFLATED) as zf:
+        for tag_id in tag_ids:
+            images = db.get_item_images_for_tag(tag_id)
+            for img in images:
+                data = storage.get_image(img.s3_key)
+                if data is None:
+                    continue
+                basename = os.path.basename(img.s3_key)
+                zf.writestr(f"{tag_id}/{basename}", data)
+                included += 1
+
+    if included == 0:
+        raise HTTPException(status_code=404, detail="No images found for the requested tags")
+
+    buf.seek(0)
+    ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+    filename = f"hallmark-images-{ts}.zip"
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return _StreamingResponse(buf, media_type="application/zip", headers=headers)
+
+
+@app.get("/stage3/downloads/zip/{tag_id}")
+async def download_tag_zip(tag_id: str):
+    """Download all images for a single tag as a zip (tag_id/ folder inside)."""
+    return _build_zip_response([tag_id])
+
+
+class BulkDownloadRequest(BaseModel):
+    tag_ids: List[str]
+
+
+@app.post("/stage3/downloads/zip")
+async def download_bulk_zip(body: BulkDownloadRequest):
+    """Download zip with a folder per selected tag."""
+    return _build_zip_response(body.tag_ids)
 
 
 if __name__ == "__main__":

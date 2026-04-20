@@ -613,3 +613,53 @@ details.raw .raw-body {
 .icon-btn:hover { background: var(--surface-2); color: var(--text); }
 
 .lucide { display: inline-block; width: 16px; height: 16px; vertical-align: -2px; }
+
+/* --- downloads dashboard ------------------------------------------------- */
+
+.folder {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: var(--space-2);
+  overflow: hidden;
+}
+.folder-head {
+  display: grid;
+  grid-template-columns: 24px 24px 1fr auto auto 24px;
+  gap: var(--space-3);
+  align-items: center;
+  padding: 10px 14px;
+  cursor: pointer;
+  user-select: none;
+}
+.folder-head:hover { background: var(--surface-2); }
+.folder-pick { display: flex; align-items: center; }
+.folder-pick input { accent-color: var(--accent); }
+.folder-icon .lucide { color: var(--text-muted); width: 18px; height: 18px; }
+.folder-title { min-width: 0; }
+.folder-meta { white-space: nowrap; font-size: 12px; }
+.folder-chevron .lucide { transition: transform 120ms; color: var(--text-muted); }
+.folder.open .folder-chevron .lucide { transform: rotate(90deg); }
+.folder-body {
+  display: none;
+  padding: 4px 14px 14px 64px;
+  background: var(--surface-2);
+  border-top: 1px solid var(--border);
+}
+.folder.open .folder-body { display: block; }
+
+.image-row {
+  display: grid;
+  grid-template-columns: 20px 1fr auto auto auto;
+  gap: var(--space-3);
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.image-row:last-child { border-bottom: 0; }
+.image-icon .lucide { color: var(--text-muted); width: 16px; height: 16px; }
+.image-name { word-break: break-all; }
+.image-type { font-size: 11px; }
+.image-size { font-size: 11px; font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace; }
+
