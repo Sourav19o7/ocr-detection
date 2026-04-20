@@ -66,6 +66,47 @@ def _normalize_header(h: Any) -> str:
     return re.sub(r"\s+", "_", str(h).strip().lower())
 
 
+def _read_excel(contents: bytes) -> pd.DataFrame:
+    """Read an Excel workbook robustly across three engines.
+
+    Real-world workbooks exported from some Windows tools carry style
+    records openpyxl refuses (``expected <class 'openpyxl.styles.fills.Fill'>``).
+    We try, in order:
+
+    1. Default openpyxl via pandas — fast when it works.
+    2. openpyxl read-only/data-only — skips most of the style graph.
+    3. python-calamine — Rust reader that ignores styles entirely.
+    """
+    first_error: Optional[Exception] = None
+    try:
+        excel = pd.ExcelFile(io.BytesIO(contents), engine="openpyxl")
+        return pd.read_excel(excel, sheet_name=pick_sheet(excel.sheet_names))
+    except Exception as e:
+        first_error = e
+
+    try:
+        from openpyxl import load_workbook
+        wb = load_workbook(io.BytesIO(contents), data_only=True, read_only=True)
+        sheet_name = pick_sheet(wb.sheetnames)
+        ws = wb[sheet_name]
+        rows = [row for row in ws.iter_rows(values_only=True)
+                if row and any(cell is not None for cell in row)]
+        if len(rows) >= 2:
+            return pd.DataFrame(rows[1:], columns=rows[0])
+    except Exception as e:
+        first_error = e
+
+    try:
+        excel = pd.ExcelFile(io.BytesIO(contents), engine="calamine")
+        return pd.read_excel(excel, sheet_name=pick_sheet(excel.sheet_names))
+    except ImportError:
+        pass
+    except Exception as e:
+        first_error = e
+
+    raise first_error if first_error else ValueError("Unreadable Excel file")
+
+
 def pick_sheet(sheet_names: List[str]) -> str:
     """Prefer a sheet whose name starts with HUID or PRINT (case-insensitive)."""
     for name in sheet_names:
@@ -181,9 +222,7 @@ def parse_batch_file(contents: bytes, filename: str) -> ParseResult:
             raise ParseError(f"Could not parse CSV: {e}", status_code=400)
     elif name.endswith(".xlsx") or name.endswith(".xls"):
         try:
-            excel = pd.ExcelFile(io.BytesIO(contents))
-            sheet = pick_sheet(excel.sheet_names)
-            df = pd.read_excel(excel, sheet_name=sheet)
+            df = _read_excel(contents)
         except Exception as e:
             raise ParseError(f"Could not parse Excel file: {e}", status_code=400)
     else:

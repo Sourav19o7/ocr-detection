@@ -12,7 +12,13 @@ export function mountUpload(el) {
   const state = { batch: null, tagIds: [], strict: false };
 
   el.innerHTML = html`
-    <div class="page-header"><h1>Upload batch</h1></div>
+    <div class="page-header">
+      <h1>Upload</h1>
+      <div class="row" id="mode-switch" role="tablist" aria-label="Upload mode">
+        <button class="btn btn-secondary btn-sm" role="tab" aria-selected="true" data-mode="new">New batch</button>
+        <button class="btn btn-tertiary btn-sm" role="tab" aria-selected="false" data-mode="existing">Add to existing batch</button>
+      </div>
+    </div>
 
     <div class="upload-step card card-body" id="step1">
       <div class="step-head"><span class="step-num">1</span><h2>Excel / CSV</h2></div>
@@ -32,15 +38,35 @@ export function mountUpload(el) {
       <div id="sheet-result" class="hidden" style="margin-top:16px"></div>
     </div>
 
-    <div class="upload-step card card-body hidden" id="step2">
-      <div class="step-head"><span class="step-num">2</span><h2>HUID images</h2></div>
+    <div class="upload-step card card-body hidden" id="step-existing">
+      <div class="step-head"><span class="step-num">1</span><h2>Pick a batch</h2></div>
       <p class="muted" style="margin:0 0 12px">
-        Files named <span class="mono">{tag_id}.jpg|png</span> auto-match. Anything else lets you pick the tag from the dropdown.
+        Choose a batch that's already been created. You can drop HUID or artifact images for any tag in it.
       </p>
+      <select id="batch-picker" class="tag-input" style="max-width: 360px; font-family: Inter, sans-serif; font-size: 13px;">
+        <option value="">Loading…</option>
+      </select>
+    </div>
+
+    <div class="upload-step card card-body hidden" id="step2">
+      <div class="step-head"><span class="step-num">2</span><h2>Images</h2></div>
+      <p class="muted" style="margin:0 0 12px">
+        <strong>HUID</strong> images (default) run OCR. Switch to <strong>Artifact</strong> to store reference shots without OCR.
+        Files named <span class="mono">{tag_id}.jpg|png</span> auto-match.
+      </p>
+      <div class="row" style="margin-bottom:12px; gap: 16px;">
+        <label class="row" style="gap:6px;"><input type="radio" name="img-type" value="huid" checked /> HUID</label>
+        <label class="row" style="gap:6px;"><input type="radio" name="img-type" value="artifact" /> Artifact</label>
+        <label class="row" style="gap:6px; margin-left:12px;" id="artifact-slot-wrap" hidden>
+          Slot <select id="artifact-slot" class="tag-input" style="width:72px; font-family:Inter, sans-serif; font-size:12px;">
+            <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+          </select>
+        </label>
+      </div>
       <div class="dropzone" id="drop-images">
         ${raw(icon("images").value)}
         <h3>Drop images here</h3>
-        <p>PNG or JPG. OCR runs automatically.</p>
+        <p>PNG or JPG. One file per tag.</p>
       </div>
       <div class="file-rows" id="image-rows"></div>
     </div>
@@ -48,7 +74,35 @@ export function mountUpload(el) {
 
   refreshIcons(el);
 
-  // --- Step 1 wiring -------------------------------------------------------
+  // --- Mode switch --------------------------------------------------------
+
+  const step1 = el.querySelector("#step1");
+  const stepExisting = el.querySelector("#step-existing");
+  const step2 = el.querySelector("#step2");
+  const modeButtons = el.querySelectorAll("#mode-switch [data-mode]");
+
+  function setMode(mode) {
+    modeButtons.forEach(b => {
+      const active = b.dataset.mode === mode;
+      b.setAttribute("aria-selected", active ? "true" : "false");
+      b.classList.toggle("btn-secondary", active);
+      b.classList.toggle("btn-tertiary", !active);
+    });
+    if (mode === "new") {
+      step1.classList.remove("hidden");
+      stepExisting.classList.add("hidden");
+      step2.classList.add("hidden");
+      state.batch = null; state.tagIds = [];
+    } else {
+      step1.classList.add("hidden");
+      stepExisting.classList.remove("hidden");
+      step2.classList.add("hidden");
+      loadExistingBatches(el, state);
+    }
+  }
+  modeButtons.forEach(b => b.addEventListener("click", () => setMode(b.dataset.mode)));
+
+  // --- Step 1 (new batch) -------------------------------------------------
 
   const dropSheet = el.querySelector("#drop-sheet");
   const strictEl = el.querySelector("#strict-toggle");
@@ -59,15 +113,50 @@ export function mountUpload(el) {
     await handleSheet(files[0], state, el);
   }, { multiple: false });
 
-  dropSheet.addEventListener("click", () => promptFile("*.csv,.xlsx,.xls", false, async (files) => {
+  dropSheet.addEventListener("click", () => promptFile(".csv,.xlsx,.xls", false, async (files) => {
     if (files.length) await handleSheet(files[0], state, el);
   }));
 
-  // --- Step 2 wiring -------------------------------------------------------
+  // --- Step 2 (images) ----------------------------------------------------
+
+  const typeRadios = el.querySelectorAll('input[name="img-type"]');
+  const artifactSlotWrap = el.querySelector("#artifact-slot-wrap");
+  typeRadios.forEach(r => r.addEventListener("change", () => {
+    const mode = el.querySelector('input[name="img-type"]:checked').value;
+    artifactSlotWrap.hidden = mode !== "artifact";
+  }));
 
   const dropImg = el.querySelector("#drop-images");
   wireDropzone(dropImg, (files) => handleImages([...files], state, el), { multiple: true });
   dropImg.addEventListener("click", () => promptFile("image/*", true, (files) => handleImages([...files], state, el)));
+}
+
+async function loadExistingBatches(root, state) {
+  const picker = root.querySelector("#batch-picker");
+  try {
+    const resp = await api.get("/stage1/batches");
+    const batches = (resp && (resp.batches || resp)) || [];
+    if (!batches.length) {
+      picker.innerHTML = `<option value="">(no batches yet — create one first)</option>`;
+      return;
+    }
+    picker.innerHTML = [`<option value="">Select a batch…</option>`]
+      .concat(batches.map(b => `<option value="${b.id}">#${b.id} · ${escapeHtml(b.batch_name)} (${b.total_items || 0} items)</option>`))
+      .join("");
+    picker.addEventListener("change", async () => {
+      const batchId = picker.value;
+      if (!batchId) return;
+      const detail = await api.get(`/stage3/batch/${batchId}/results`);
+      state.batch = { batch_id: Number(batchId), batch_name: detail.batch_name };
+      state.tagIds = (detail.results || []).map(r => r.tag_id);
+      root.querySelector("#step2").classList.remove("hidden");
+      root.querySelector("#step2").scrollIntoView({ behavior: "smooth", block: "start" });
+      toast.info(`Batch ${detail.batch_name}: ${state.tagIds.length} tags loaded`);
+    }, { once: false });
+  } catch (e) {
+    picker.innerHTML = `<option value="">Error loading batches</option>`;
+    toast.error(e.message || "Could not load batches");
+  }
 }
 
 // --- step 1 --------------------------------------------------------------
@@ -140,10 +229,14 @@ async function handleSheet(file, state, root) {
 
 function handleImages(files, state, root) {
   if (!state.batch) {
-    toast.error("Upload a batch sheet first");
+    toast.error("Pick a batch (or upload a sheet) first");
     return;
   }
   const rowsEl = root.querySelector("#image-rows");
+  ensureTagDatalist(root, state.tagIds);
+  const tagSet = new Set(state.tagIds);
+  const imageType = root.querySelector('input[name="img-type"]:checked')?.value || "huid";
+  const artifactSlot = Number(root.querySelector("#artifact-slot")?.value || 1);
 
   files.forEach(file => {
     const row = document.createElement("div");
@@ -152,63 +245,94 @@ function handleImages(files, state, root) {
     row.innerHTML = `
       <div class="truncate"><strong class="mono">${escapeHtml(file.name)}</strong></div>
       <div class="progress"><span style="width:0%"></span></div>
-      <select>${optionList(state.tagIds, guessed)}</select>
+      <input class="tag-input" list="tag-options"
+             placeholder="Type or pick tag…"
+             value="${escapeHtml(guessed)}"
+             autocomplete="off" spellcheck="false" />
       <span></span>
     `;
     rowsEl.appendChild(row);
 
     const bar = row.querySelector(".progress > span");
     const icon = row.querySelector(":scope > span:last-child");
-    const select = row.querySelector("select");
+    const input = row.querySelector("input.tag-input");
 
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/stage2/upload-image");
-    const fd = new FormData();
-    fd.append("file", file);
-    fd.append("tag_id", select.value || "");
-    fd.append("image_type", "huid");
-    fd.append("slot", "0");
-
-    xhr.upload.addEventListener("progress", (e) => {
-      if (!e.lengthComputable) return;
-      bar.style.width = `${Math.round((e.loaded / e.total) * 100)}%`;
-    });
-    xhr.addEventListener("load", () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        row.classList.add("ok");
-        bar.style.width = "100%";
-        icon.innerHTML = '<i data-lucide="check" style="color: var(--success)"></i>';
+    const sendWithTag = (tag) => {
+      const xhr = new XMLHttpRequest();
+      const endpoint = imageType === "huid" ? "/stage2/upload-image" : "/stage2/upload-artifact";
+      xhr.open("POST", endpoint);
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("tag_id", tag);
+      if (imageType === "huid") {
+        fd.append("image_type", "huid");
+        fd.append("slot", "0");
       } else {
+        fd.append("slot", String(artifactSlot));
+      }
+      xhr.upload.addEventListener("progress", (e) => {
+        if (!e.lengthComputable) return;
+        bar.style.width = `${Math.round((e.loaded / e.total) * 100)}%`;
+      });
+      xhr.addEventListener("load", () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          row.classList.add("ok");
+          bar.style.width = "100%";
+          icon.innerHTML = '<i data-lucide="check" style="color: var(--success)"></i>';
+        } else {
+          row.classList.add("err");
+          icon.innerHTML = '<i data-lucide="alert-circle" style="color: var(--danger)"></i>';
+          let msg = xhr.statusText;
+          try { msg = JSON.parse(xhr.responseText)?.detail || msg; } catch {}
+          row.querySelector(".truncate").insertAdjacentHTML("beforeend", `<div class="muted" style="font-size:12px">${escapeHtml(msg)}</div>`);
+        }
+        refreshIcons(row);
+      });
+      xhr.addEventListener("error", () => {
         row.classList.add("err");
         icon.innerHTML = '<i data-lucide="alert-circle" style="color: var(--danger)"></i>';
-        let msg = xhr.statusText;
-        try { msg = JSON.parse(xhr.responseText)?.detail || msg; } catch {}
-        row.querySelector(".truncate").insertAdjacentHTML("beforeend", `<div class="muted" style="font-size:12px">${escapeHtml(msg)}</div>`);
-      }
-      refreshIcons(row);
-    });
-    xhr.addEventListener("error", () => {
-      row.classList.add("err");
-      icon.innerHTML = '<i data-lucide="alert-circle" style="color: var(--danger)"></i>';
-      refreshIcons(row);
-    });
-
-    // Delay start until the dropdown has a chosen tag
-    if (!select.value) {
-      select.addEventListener("change", () => {
-        if (!select.value) return;
-        const fd2 = new FormData();
-        fd2.append("file", file);
-        fd2.append("tag_id", select.value);
-        fd2.append("image_type", "huid");
-        fd2.append("slot", "0");
-        xhr.open("POST", "/stage2/upload-image");
-        xhr.send(fd2);
-      }, { once: true });
-    } else {
+        refreshIcons(row);
+      });
       xhr.send(fd);
+    };
+
+    const validate = () => {
+      const v = input.value.trim();
+      if (!v) { input.classList.remove("invalid"); return false; }
+      if (!tagSet.has(v)) { input.classList.add("invalid"); return false; }
+      input.classList.remove("invalid");
+      return true;
+    };
+
+    input.addEventListener("input", validate);
+
+    // If filename auto-matched, fire immediately. Otherwise wait for a valid
+    // pick (via datalist, typing, or paste) and upload on change/enter.
+    if (guessed) {
+      sendWithTag(guessed);
+    } else {
+      const trigger = () => {
+        if (!validate()) return;
+        input.removeEventListener("change", trigger);
+        input.removeEventListener("keydown", keyTrigger);
+        sendWithTag(input.value.trim());
+      };
+      const keyTrigger = (e) => { if (e.key === "Enter") trigger(); };
+      input.addEventListener("change", trigger);
+      input.addEventListener("keydown", keyTrigger);
+      input.focus();
     }
   });
+}
+
+function ensureTagDatalist(root, tagIds) {
+  let list = document.getElementById("tag-options");
+  if (!list) {
+    list = document.createElement("datalist");
+    list.id = "tag-options";
+    root.appendChild(list);
+  }
+  list.innerHTML = tagIds.map(t => `<option value="${escapeHtml(t)}"></option>`).join("");
 }
 
 function guessTagId(filename, tagIds) {

@@ -67,7 +67,9 @@ function render(el, data, { compact }) {
           <h3>Identity</h3>
           <div class="meta-row"><span class="k">Tag ID</span><span class="v mono">${data.tag_id}</span></div>
           <div class="meta-row"><span class="k">Batch</span>
-            <span class="v">${data.batch?.name ? `<a href="#/batch/${encodeURIComponent(data.batch.id)}">${escapeHtml(data.batch.name)}</a>` : raw("—")}</span>
+            <span class="v">${data.batch?.name
+              ? raw(`<a href="#/batch/${encodeURIComponent(data.batch.id)}">${escapeHtml(data.batch.name)}</a>`)
+              : "—"}</span>
           </div>
         </div>
 
@@ -130,13 +132,16 @@ function tile({ type, slot, image, label, active = false }) {
   const cls = ["tile"];
   if (!image) cls.push("empty");
   if (active) cls.push("active");
-  const remove = (type === "artifact" && image)
-    ? `<button class="remove" aria-label="Remove artifact ${slot}" data-remove="${slot}"><i data-lucide="x" style="width:12px;height:12px"></i></button>`
-    : "";
+  let corner = "";
+  if (type === "artifact" && image) {
+    corner = `<button class="remove" aria-label="Remove artifact ${slot}" data-remove="${slot}"><i data-lucide="x" style="width:12px;height:12px"></i></button>`;
+  } else if (type === "huid" && image) {
+    corner = `<button class="remove" aria-label="Replace HUID image" data-replace="1"><i data-lucide="refresh-cw" style="width:12px;height:12px"></i></button>`;
+  }
   const inner = image
     ? `<span class="label">${escapeHtml(label)}</span>`
     : `<i data-lucide="plus"></i><span class="label">${escapeHtml(label)}</span>`;
-  return `<div class="${cls.join(" ")}" data-type="${type}" data-slot="${slot}" role="button" tabindex="0" ${bg}>${inner}${remove}</div>`;
+  return `<div class="${cls.join(" ")}" data-type="${type}" data-slot="${slot}" role="button" tabindex="0" ${bg}>${inner}${corner}</div>`;
 }
 
 function wireGallery(el, { tagId, huid, bySlot }) {
@@ -159,32 +164,30 @@ function wireGallery(el, { tagId, huid, bySlot }) {
     const slotNum = Number(slot);
     const currentImg = type === "huid" ? huid : bySlot[slotNum];
 
-    // Click to swap large viewer, or open file picker if empty artifact.
+    // Click to swap large viewer, or open file picker on an empty tile.
     tile.addEventListener("click", (e) => {
-      if (e.target.closest("[data-remove]")) return;
+      if (e.target.closest("[data-remove], [data-replace]")) return;
       if (!tile.classList.contains("empty")) {
         strip.querySelectorAll(".tile").forEach((t) => t.classList.remove("active"));
         tile.classList.add("active");
         const url = currentImg?.url || tile.style.backgroundImage?.replace(/^url\(['"]?|['"]?\)$/g, "");
         setLarge(url);
-      } else if (type === "artifact") {
-        openPicker(tagId, slotNum);
+      } else {
+        openPicker(tagId, type, slotNum);
       }
     });
 
     tile.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); tile.click(); } });
 
-    // Drag-and-drop upload onto artifact slots.
-    if (type === "artifact") {
-      tile.addEventListener("dragover", (e) => { e.preventDefault(); tile.classList.add("dragover"); });
-      tile.addEventListener("dragleave", () => tile.classList.remove("dragover"));
-      tile.addEventListener("drop", async (e) => {
-        e.preventDefault();
-        tile.classList.remove("dragover");
-        const file = e.dataTransfer?.files?.[0];
-        if (file) await uploadArtifact(tagId, slotNum, file);
-      });
-    }
+    // Drag-and-drop upload onto any tile (HUID or artifact).
+    tile.addEventListener("dragover", (e) => { e.preventDefault(); tile.classList.add("dragover"); });
+    tile.addEventListener("dragleave", () => tile.classList.remove("dragover"));
+    tile.addEventListener("drop", async (e) => {
+      e.preventDefault();
+      tile.classList.remove("dragover");
+      const file = e.dataTransfer?.files?.[0];
+      if (file) await uploadTile(tagId, type, slotNum, file);
+    });
 
     // Remove artifact
     const remove = tile.querySelector("[data-remove]");
@@ -198,6 +201,15 @@ function wireGallery(el, { tagId, huid, bySlot }) {
         } catch (err) {
           toast.error(err.message || "Delete failed");
         }
+      });
+    }
+
+    // Replace HUID (re-open picker)
+    const replace = tile.querySelector("[data-replace]");
+    if (replace) {
+      replace.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openPicker(tagId, "huid", 0);
       });
     }
   });
@@ -214,26 +226,36 @@ function wireGallery(el, { tagId, huid, bySlot }) {
   });
 }
 
-function openPicker(tagId, slot) {
+function openPicker(tagId, type, slot) {
   const input = document.createElement("input");
   input.type = "file";
   input.accept = "image/*";
   input.addEventListener("change", async () => {
     const file = input.files?.[0];
-    if (file) await uploadArtifact(tagId, slot, file);
+    if (file) await uploadTile(tagId, type, slot, file);
   });
   input.click();
 }
 
-async function uploadArtifact(tagId, slot, file) {
-  const fd = new FormData();
-  fd.append("tag_id", tagId);
-  fd.append("slot", String(slot));
-  fd.append("file", file);
+async function uploadTile(tagId, type, slot, file) {
   try {
-    await api.postForm("/stage2/upload-artifact", fd);
-    toast.success(`Artifact ${slot} uploaded`);
-    // Soft refresh — easiest way to re-sync all URLs and state.
+    if (type === "huid") {
+      const fd = new FormData();
+      fd.append("tag_id", tagId);
+      fd.append("image_type", "huid");
+      fd.append("slot", "0");
+      fd.append("file", file);
+      toast.info("Running OCR…", { timeout: 2500 });
+      await api.postForm("/stage2/upload-image", fd);
+      toast.success("HUID uploaded");
+    } else {
+      const fd = new FormData();
+      fd.append("tag_id", tagId);
+      fd.append("slot", String(slot));
+      fd.append("file", file);
+      await api.postForm("/stage2/upload-artifact", fd);
+      toast.success(`Artifact ${slot} uploaded`);
+    }
     location.reload();
   } catch (e) {
     toast.error(e.message || "Upload failed");

@@ -9,6 +9,7 @@ opencv-python-headless
 boto3
 pandas
 openpyxl
+python-calamine
 python-dotenv
 itsdangerous
 httpx

@@ -142,9 +142,10 @@ h3 { font-size: 14px; color: var(--text-muted); text-transform: uppercase; lette
 /* --- main & pages --------------------------------------------------------- */
 
 #app {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: var(--space-6) var(--space-5) var(--space-8);
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: var(--space-6) var(--space-6) var(--space-8);
 }
 .page-header {
   display: flex;
@@ -437,7 +438,9 @@ h3 { font-size: 14px; color: var(--text-muted); text-transform: uppercase; lette
 #drawer {
   position: fixed;
   top: 0; right: 0; bottom: 0;
-  width: min(640px, 100%);
+  width: 60vw;
+  min-width: 360px;
+  max-width: 100vw;
   background: var(--surface);
   border-left: 1px solid var(--border);
   box-shadow: var(--shadow-pop);
@@ -566,7 +569,7 @@ details.raw .raw-body {
 .file-rows { margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); }
 .file-row {
   display: grid;
-  grid-template-columns: 1fr 140px 80px 24px;
+  grid-template-columns: 1fr 140px 200px 24px;
   gap: var(--space-3);
   align-items: center;
   padding: 8px 12px;
@@ -579,6 +582,20 @@ details.raw .raw-body {
 .file-row.ok   { border-color: #A7F3D0; background: #ECFDF5; }
 .file-row.err  { border-color: #FECACA; background: #FEF2F2; }
 .file-row .lucide { width: 16px; height: 16px; }
+.tag-input {
+  width: 100%;
+  height: 30px;
+  padding: 0 10px;
+  font: inherit;
+  font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+.tag-input:focus { border-color: var(--accent); }
+.tag-input.invalid { border-color: var(--danger); }
 
 /* --- misc utilities ------------------------------------------------------- */
 
