@@ -978,20 +978,23 @@ async def search_tag_ids(
     cursor = conn.cursor()
 
     # Search for tags matching by tag_id OR expected_huid
-    # Include decision, huid_match, and processed_at for search results page
+    # Include decision, huid_match, and processed_at from ocr_results via LEFT JOIN
     cursor.execute(
-        """SELECT tag_id, expected_huid, decision, huid_match, processed_at FROM batch_items
-           WHERE tag_id LIKE ? OR tag_id LIKE ? OR expected_huid LIKE ?
+        """SELECT bi.tag_id, bi.expected_huid,
+                  ocr.decision, ocr.huid_match, ocr.created_at as processed_at
+           FROM batch_items bi
+           LEFT JOIN ocr_results ocr ON ocr.batch_item_id = bi.id
+           WHERE bi.tag_id LIKE ? OR bi.tag_id LIKE ? OR bi.expected_huid LIKE ?
            ORDER BY
              CASE
-               WHEN tag_id = ? THEN 0
-               WHEN expected_huid = ? THEN 1
-               WHEN tag_id LIKE ? THEN 2
-               WHEN expected_huid LIKE ? THEN 3
-               WHEN tag_id LIKE ? THEN 4
+               WHEN bi.tag_id = ? THEN 0
+               WHEN bi.expected_huid = ? THEN 1
+               WHEN bi.tag_id LIKE ? THEN 2
+               WHEN bi.expected_huid LIKE ? THEN 3
+               WHEN bi.tag_id LIKE ? THEN 4
                ELSE 5
              END,
-             tag_id
+             bi.tag_id
            LIMIT ?""",
         (f"%{q}%", f"{q}_%", f"%{q}%", q, q, f"{q}_%", f"{q}%", f"{q}%", limit)
     )
@@ -1001,7 +1004,7 @@ async def search_tag_ids(
     results = [{
         "tag_id": row["tag_id"],
         "expected_huid": row["expected_huid"],
-        "decision": row["decision"],
+        "decision": row["decision"] or "pending",
         "huid_match": bool(row["huid_match"]) if row["huid_match"] is not None else None,
         "processed_at": row["processed_at"]
     } for row in rows]
