@@ -751,6 +751,150 @@ details.raw .raw-body {
   color: #92400E;
 }
 
+/* --- search results page -------------------------------------------------- */
+
+.search-results-page {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.search-results-header {
+  margin-bottom: var(--space-5);
+}
+.search-results-header h1 {
+  margin: 0 0 4px;
+  font-size: 24px;
+  font-weight: 600;
+}
+.search-results-header p {
+  margin: 0;
+}
+
+.search-results-loading {
+  text-align: center;
+  padding: var(--space-8);
+  color: var(--text-muted);
+}
+.search-results-loading .spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  margin: 0 auto var(--space-3);
+  animation: spin 600ms linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.search-results-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.result-card {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 100ms, border-color 100ms, box-shadow 100ms;
+}
+.result-card:hover {
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
+}
+.result-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Status-based left border indicator */
+.result-card.status-approved { border-left: 4px solid var(--success); }
+.result-card.status-rejected { border-left: 4px solid var(--danger); }
+.result-card.status-review { border-left: 4px solid var(--warning); }
+.result-card.status-mismatch { border-left: 4px solid var(--danger); background: #FEF2F2; }
+.result-card.status-pending { border-left: 4px solid var(--border-strong); }
+
+.result-main {
+  min-width: 0;
+}
+.result-tag {
+  font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  font-size: 14px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.result-tag mark {
+  background: #FEF08A;
+  color: inherit;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+.result-huid {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.result-huid .mono {
+  font-family: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  color: var(--text);
+}
+.result-huid mark {
+  background: #FEF08A;
+  color: inherit;
+  padding: 0 1px;
+  border-radius: 2px;
+}
+
+.result-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.huid-mismatch-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--danger);
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+.huid-mismatch-chip i {
+  width: 12px;
+  height: 12px;
+}
+
+.result-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-muted);
+}
+.result-date {
+  font-size: 12px;
+  white-space: nowrap;
+}
+.result-meta i {
+  width: 16px;
+  height: 16px;
+  opacity: 0.5;
+}
+.result-card:hover .result-meta i {
+  opacity: 1;
+}
+
 /* --- upload flow ---------------------------------------------------------- */
 
 .upload-step { margin-bottom: var(--space-5); }

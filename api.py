@@ -978,8 +978,9 @@ async def search_tag_ids(
     cursor = conn.cursor()
 
     # Search for tags matching by tag_id OR expected_huid
+    # Include decision, huid_match, and processed_at for search results page
     cursor.execute(
-        """SELECT tag_id, expected_huid FROM batch_items
+        """SELECT tag_id, expected_huid, decision, huid_match, processed_at FROM batch_items
            WHERE tag_id LIKE ? OR tag_id LIKE ? OR expected_huid LIKE ?
            ORDER BY
              CASE
@@ -997,7 +998,13 @@ async def search_tag_ids(
     rows = cursor.fetchall()
     conn.close()
 
-    results = [{"tag_id": row["tag_id"], "expected_huid": row["expected_huid"]} for row in rows]
+    results = [{
+        "tag_id": row["tag_id"],
+        "expected_huid": row["expected_huid"],
+        "decision": row["decision"],
+        "huid_match": bool(row["huid_match"]) if row["huid_match"] is not None else None,
+        "processed_at": row["processed_at"]
+    } for row in rows]
 
     # Sort tags with numeric suffixes properly (e.g., _1, _2, _10 instead of _1, _10, _2)
     def sort_key(item):

@@ -146,7 +146,7 @@ export function mountTopbar(el, { breadcrumbs = [] } = {}) {
       e.preventDefault();
       const v = input.value.trim();
 
-      // If a suggestion is selected, use it
+      // If a suggestion is selected, go directly to that item
       if (isOpen && selectedIndex >= 0 && items[selectedIndex]) {
         const tag = items[selectedIndex].dataset.tag;
         input.value = tag;
@@ -155,49 +155,10 @@ export function mountTopbar(el, { breadcrumbs = [] } = {}) {
         return;
       }
 
-      // If suggestions are open but none selected, select the first one
-      if (isOpen && items.length > 0) {
-        const tag = items[0].dataset.tag;
-        input.value = tag;
-        hideSuggestions();
-        location.hash = `#/item/${encodeURIComponent(tag)}`;
-        return;
-      }
-
-      // If no suggestions are open, search first then decide
+      // Otherwise, navigate to search results page to show all matches
       if (v) {
-        try {
-          const resp = await api.get(`/stage3/search/tags?q=${encodeURIComponent(v)}&limit=8`);
-          const tags = resp.tags || [];
-
-          // If exact match exists, go directly
-          const exactMatch = tags.find(t => t.toLowerCase() === v.toLowerCase());
-          if (exactMatch) {
-            hideSuggestions();
-            location.hash = `#/item/${encodeURIComponent(exactMatch)}`;
-            return;
-          }
-
-          // If we have suggestions (like _1, _2 variants), show them
-          if (tags.length > 0) {
-            await searchTags(v);
-            // Auto-select first item
-            if (tags.length === 1) {
-              // Only one match, go directly
-              hideSuggestions();
-              location.hash = `#/item/${encodeURIComponent(tags[0])}`;
-            }
-            return;
-          }
-
-          // No matches at all, try to navigate anyway (will show error)
-          hideSuggestions();
-          location.hash = `#/item/${encodeURIComponent(v)}`;
-        } catch (err) {
-          console.error("Search error:", err);
-          hideSuggestions();
-          location.hash = `#/item/${encodeURIComponent(v)}`;
-        }
+        hideSuggestions();
+        location.hash = `#/search?q=${encodeURIComponent(v)}`;
       }
       return;
     }
