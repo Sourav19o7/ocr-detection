@@ -4,6 +4,7 @@
 
 import { api } from "../api.js";
 import { toast } from "./toast.js";
+import { openImageSourcePicker } from "./camera.js";
 import {
   html, raw, escapeHtml, refreshIcons, icon,
 } from "../lib/format.js";
@@ -68,6 +69,12 @@ export function mountUpload(el) {
         <h3>Drop images here</h3>
         <p>PNG or JPG. One file per tag.</p>
       </div>
+      <div class="upload-alt-row">
+        <span class="muted">or</span>
+        <button class="btn btn-secondary btn-sm" id="capture-image">
+          ${raw(icon("camera").value)} Capture from camera
+        </button>
+      </div>
       <div class="file-rows" id="image-rows"></div>
     </div>
   `;
@@ -129,6 +136,21 @@ export function mountUpload(el) {
   const dropImg = el.querySelector("#drop-images");
   wireDropzone(dropImg, (files) => handleImages([...files], state, el), { multiple: true });
   dropImg.addEventListener("click", () => promptFile("image/*", true, (files) => handleImages([...files], state, el)));
+
+  // Camera capture button
+  const captureBtn = el.querySelector("#capture-image");
+  captureBtn.addEventListener("click", () => {
+    if (!state.batch) {
+      toast.error("Pick a batch (or upload a sheet) first");
+      return;
+    }
+    openImageSourcePicker({
+      accept: "image/*",
+      multiple: true,
+      onFiles: (files) => handleImages([...files], state, el),
+      captureFilename: "captured_image.jpg"
+    });
+  });
 }
 
 async function loadExistingBatches(root, state) {

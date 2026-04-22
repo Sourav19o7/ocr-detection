@@ -4,6 +4,7 @@
 import { api } from "../api.js";
 import { toast } from "./toast.js";
 import { modal } from "./modal.js";
+import { openImageSourcePicker } from "./camera.js";
 import {
   html, raw, escapeHtml, refreshIcons, icon,
   decisionChip, statusChip, formatConfidence, formatDate,
@@ -335,14 +336,15 @@ function wireGallery(el, { tagId, huid, bySlot }) {
 }
 
 function openPicker(tagId, type, slot) {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = "image/*";
-  input.addEventListener("change", async () => {
-    const file = input.files?.[0];
-    if (file) await uploadTile(tagId, type, slot, file);
+  openImageSourcePicker({
+    accept: "image/*",
+    multiple: false,
+    captureFilename: `${tagId}_${type}${type === "artifact" ? slot : ""}.jpg`,
+    onFiles: async (files) => {
+      const file = files?.[0];
+      if (file) await uploadTile(tagId, type, slot, file);
+    }
   });
-  input.click();
 }
 
 async function uploadTile(tagId, type, slot, file) {
