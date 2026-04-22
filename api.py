@@ -968,32 +968,62 @@ async def search_tag_ids(
 ):
     """
     Search for tag IDs with partial matching.
-    Returns matching tag IDs sorted by relevance (exact match first, then prefix, then contains).
+    Returns matching tag IDs sorted by relevance:
+    - Exact match first
+    - Tags with suffixes like _1, _2 (sorted numerically)
+    - Other prefix matches
+    - Contains matches
     """
     conn = db._get_connection()
     cursor = conn.cursor()
 
     # Search for tags containing the query string
+    # Also search for tags that start with query followed by underscore and number (e.g., query_1, query_2)
     cursor.execute(
         """SELECT DISTINCT tag_id FROM batch_items
-           WHERE tag_id LIKE ?
+           WHERE tag_id LIKE ? OR tag_id LIKE ?
            ORDER BY
              CASE
                WHEN tag_id = ? THEN 0
                WHEN tag_id LIKE ? THEN 1
-               ELSE 2
+               WHEN tag_id LIKE ? THEN 2
+               ELSE 3
              END,
              tag_id
            LIMIT ?""",
-        (f"%{q}%", q, f"{q}%", limit)
+        (f"%{q}%", f"{q}_%", q, f"{q}_%", f"{q}%", limit)
     )
     rows = cursor.fetchall()
     conn.close()
 
+    tags = [row["tag_id"] for row in rows]
+
+    # Sort tags with numeric suffixes properly (e.g., _1, _2, _10 instead of _1, _10, _2)
+    def sort_key(tag):
+        # Check if tag has a numeric suffix like _1, _2
+        if tag.startswith(q) and "_" in tag[len(q):]:
+            suffix = tag[len(q):]
+            if suffix.startswith("_"):
+                try:
+                    num = int(suffix[1:])
+                    return (0 if tag == q else 1, num, tag)
+                except ValueError:
+                    pass
+        # Exact match
+        if tag == q:
+            return (0, 0, tag)
+        # Starts with query
+        if tag.startswith(q):
+            return (2, 0, tag)
+        # Contains query
+        return (3, 0, tag)
+
+    tags.sort(key=sort_key)
+
     return {
         "status": "success",
         "query": q,
-        "tags": [row["tag_id"] for row in rows]
+        "tags": tags[:limit]
     }
 
 
