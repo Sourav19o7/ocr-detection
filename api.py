@@ -968,7 +968,7 @@ async def search_tag_ids(
 ):
     """
     Search for tag IDs with partial matching.
-    Returns matching tag IDs sorted by relevance:
+    Returns matching tag IDs with expected_huid, sorted by relevance:
     - Exact match first
     - Tags with suffixes like _1, _2 (sorted numerically)
     - Other prefix matches
@@ -977,10 +977,9 @@ async def search_tag_ids(
     conn = db._get_connection()
     cursor = conn.cursor()
 
-    # Search for tags containing the query string
-    # Also search for tags that start with query followed by underscore and number (e.g., query_1, query_2)
+    # Search for tags containing the query string, include expected_huid
     cursor.execute(
-        """SELECT DISTINCT tag_id FROM batch_items
+        """SELECT tag_id, expected_huid FROM batch_items
            WHERE tag_id LIKE ? OR tag_id LIKE ?
            ORDER BY
              CASE
@@ -996,10 +995,11 @@ async def search_tag_ids(
     rows = cursor.fetchall()
     conn.close()
 
-    tags = [row["tag_id"] for row in rows]
+    results = [{"tag_id": row["tag_id"], "expected_huid": row["expected_huid"]} for row in rows]
 
     # Sort tags with numeric suffixes properly (e.g., _1, _2, _10 instead of _1, _10, _2)
-    def sort_key(tag):
+    def sort_key(item):
+        tag = item["tag_id"]
         # Check if tag has a numeric suffix like _1, _2
         if tag.startswith(q) and "_" in tag[len(q):]:
             suffix = tag[len(q):]
@@ -1018,12 +1018,14 @@ async def search_tag_ids(
         # Contains query
         return (3, 0, tag)
 
-    tags.sort(key=sort_key)
+    results.sort(key=sort_key)
 
     return {
         "status": "success",
         "query": q,
-        "tags": tags[:limit]
+        "results": results[:limit],
+        # Keep backward compatibility
+        "tags": [r["tag_id"] for r in results[:limit]]
     }
 
 
