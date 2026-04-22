@@ -4,7 +4,7 @@ import { api } from "../api.js";
 import { toast } from "./toast.js";
 import {
   html, raw, escapeHtml, refreshIcons, icon,
-  decisionChip, statusChip, formatDate,
+  decisionChip, statusChip, formatDate, formatPercent,
 } from "../lib/format.js";
 
 export async function mountSearchResults(el, { query } = {}) {
@@ -92,6 +92,7 @@ function renderResultCard(item, query) {
   const huid = item.expected_huid || "";
   const decision = item.decision || "pending";
   const huidMatch = item.huid_match;
+  const confidence = item.confidence;
   const processedAt = item.processed_at;
 
   // Highlight matching text
@@ -109,6 +110,7 @@ function renderResultCard(item, query) {
       </div>
       <div class="result-status">
         ${decisionChip(decision)}
+        ${confidence != null ? `<span class="confidence-badge">${formatPercent(confidence, 0)}</span>` : ''}
         ${huidMatch === false ? '<span class="huid-mismatch-chip"><i data-lucide="alert-triangle"></i> HUID Mismatch</span>' : ''}
       </div>
       <div class="result-meta">

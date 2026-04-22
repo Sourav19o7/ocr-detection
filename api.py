@@ -981,7 +981,7 @@ async def search_tag_ids(
     # Include decision, huid_match, and processed_at from ocr_results via LEFT JOIN
     cursor.execute(
         """SELECT bi.tag_id, bi.expected_huid,
-                  ocr.decision, ocr.huid_match, ocr.created_at as processed_at
+                  ocr.decision, ocr.huid_match, ocr.confidence, ocr.created_at as processed_at
            FROM batch_items bi
            LEFT JOIN ocr_results ocr ON ocr.batch_item_id = bi.id
            WHERE bi.tag_id LIKE ? OR bi.tag_id LIKE ? OR bi.expected_huid LIKE ?
@@ -1006,6 +1006,7 @@ async def search_tag_ids(
         "expected_huid": row["expected_huid"],
         "decision": row["decision"] or "pending",
         "huid_match": bool(row["huid_match"]) if row["huid_match"] is not None else None,
+        "confidence": row["confidence"],
         "processed_at": row["processed_at"]
     } for row in rows]
 
