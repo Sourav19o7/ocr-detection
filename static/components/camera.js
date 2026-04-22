@@ -111,30 +111,37 @@ async function startStream(deviceId, video, placeholder, errorEl, captureBtn) {
   stopStream();
 
   try {
-    const constraints = {
-      video: {
-        deviceId: deviceId ? { exact: deviceId } : undefined,
-        width: { ideal: 1920 },
-        height: { ideal: 1080 },
-        facingMode: "environment" // Prefer back camera on mobile
-      }
+    // Build constraints - don't mix exact deviceId with facingMode
+    const videoConstraints = {
+      width: { ideal: 1920 },
+      height: { ideal: 1080 }
     };
 
-    activeStream = await navigator.mediaDevices.getUserMedia(constraints);
+    if (deviceId) {
+      videoConstraints.deviceId = { exact: deviceId };
+    } else {
+      videoConstraints.facingMode = "environment"; // Prefer back camera on mobile
+    }
+
+    activeStream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
     video.srcObject = activeStream;
     video.style.display = "block";
     placeholder.style.display = "none";
     errorEl.classList.add("hidden");
 
-    // Enable capture button once video is playing
+    // Enable capture button once video is actually playing
     video.onloadedmetadata = () => {
-      captureBtn.disabled = false;
+      video.play().then(() => {
+        if (captureBtn) captureBtn.disabled = false;
+      }).catch(err => {
+        console.error("Video play error:", err);
+      });
     };
 
   } catch (err) {
     console.error("Stream error:", err);
     showError(errorEl, placeholder, `Could not start camera: ${err.message}`);
-    captureBtn.disabled = true;
+    if (captureBtn) captureBtn.disabled = true;
   }
 }
 
@@ -162,6 +169,12 @@ function captureImage(onCapture, filename) {
     return;
   }
 
+  // Check if video has valid dimensions
+  if (video.videoWidth === 0 || video.videoHeight === 0) {
+    toast.error("Video not ready yet, please wait");
+    return;
+  }
+
   // Set canvas size to video dimensions
   canvas.width = video.videoWidth;
   canvas.height = video.videoHeight;
@@ -178,9 +191,12 @@ function captureImage(onCapture, filename) {
     }
 
     const file = new File([blob], filename, { type: "image/jpeg" });
+
+    // Stop stream and close modal first
     stopStream();
     modal.close();
 
+    // Then call the callback
     if (typeof onCapture === "function") {
       onCapture(file);
     }
