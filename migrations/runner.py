@@ -6,6 +6,7 @@ import sqlite3
 from typing import Callable, List, Tuple
 
 from . import m001_artifact_images
+from . import m002_external_api_fields
 
 
 Migration = Tuple[int, str, Callable[[sqlite3.Connection], None]]
@@ -13,6 +14,7 @@ Migration = Tuple[int, str, Callable[[sqlite3.Connection], None]]
 
 MIGRATIONS: List[Migration] = [
     (1, "artifact_images", m001_artifact_images.apply),
+    (2, "external_api_fields", m002_external_api_fields.apply),
 ]
 
 

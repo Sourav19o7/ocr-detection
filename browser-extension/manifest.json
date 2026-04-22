@@ -1,0 +1,48 @@
+{
+  "manifest_version": 3,
+  "name": "Hallmark QC Portal Uploader",
+  "version": "1.0.1",
+  "description": "Semi-automated upload tool for Manakonline portal",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "scripting",
+    "downloads",
+    "tabs"
+  ],
+  "host_permissions": [
+    "*://*.dcservices.in/*",
+    "*://manak.bis.gov.in/*",
+    "*://*.manakonline.in/*",
+    "http://localhost:8000/*",
+    "https://*.amazonaws.com/*"
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "assets/icon16.png",
+      "48": "assets/icon48.png",
+      "128": "assets/icon128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.dcservices.in/*",
+        "*://manak.bis.gov.in/*",
+        "*://*.manakonline.in/*"
+      ],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "assets/icon16.png",
+    "48": "assets/icon48.png",
+    "128": "assets/icon128.png"
+  }
+}

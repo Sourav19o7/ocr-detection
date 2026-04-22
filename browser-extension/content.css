@@ -1,0 +1,94 @@
+/* Hallmark QC Portal Uploader - Status Bar Styles */
+
+#hqc-status-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(135deg, #1a365d 0%, #2c5282 100%);
+  color: white;
+  padding: 8px 16px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  z-index: 999999;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.2);
+  display: flex;
+  align-items: center;
+}
+
+.hqc-status-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.hqc-logo {
+  background: #ed8936;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+}
+
+.hqc-status-text {
+  font-weight: 500;
+}
+
+.hqc-current {
+  font-family: 'Courier New', monospace;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 2px 8px;
+  border-radius: 3px;
+}
+
+.hqc-progress {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.hqc-btn {
+  background: white;
+  color: #1a365d;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-left: auto;
+  transition: background 0.2s;
+}
+
+.hqc-btn:hover {
+  background: #e2e8f0;
+}
+
+.hqc-btn.hqc-pause {
+  background: #fc8181;
+  color: white;
+}
+
+.hqc-btn.hqc-pause:hover {
+  background: #f56565;
+}
+
+/* Highlight current row being processed */
+.hqc-processing-row {
+  background-color: #fef3c7 !important;
+  outline: 2px solid #f59e0b;
+  outline-offset: -2px;
+}
+
+/* Success indicator */
+.hqc-upload-success {
+  background-color: #d1fae5 !important;
+}
+
+/* Error indicator */
+.hqc-upload-error {
+  background-color: #fee2e2 !important;
+}

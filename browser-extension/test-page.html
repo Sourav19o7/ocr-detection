@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Manakonline Portal - Test Page</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        h1 { color: #1e824c; }
+        .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .logged-in { background: #d4edda; color: #155724; }
+        .logged-out { background: #f8d7da; color: #721c24; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background: #1e824c; color: white; }
+        tr:nth-child(even) { background: #f9f9f9; }
+        .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin: 5px; }
+        .btn-primary { background: #1e824c; color: white; }
+        .btn-danger { background: #dc3545; color: white; }
+        .upload-cell { display: flex; align-items: center; gap: 10px; }
+        input[type="file"] { font-size: 12px; }
+        #logout-btn { float: right; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Manakonline Portal - Test Simulator</h1>
+
+        <div id="login-status" class="status logged-in">
+            <strong>Status:</strong> Logged in as test_operator
+            <button id="logout-btn" class="btn btn-danger" onclick="toggleLogin()">Logout</button>
+        </div>
+
+        <p><strong>BIS Job No:</strong> 125554301</p>
+
+        <h2>Upload Items</h2>
+        <table id="items-table">
+            <thead>
+                <tr>
+                    <th>S.No</th>
+                    <th>AHC Tag</th>
+                    <th>HUID</th>
+                    <th>Purity</th>
+                    <th>Article Photo</th>
+                    <th>HUID Photo</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr data-tag="a1">
+                    <td>1</td>
+                    <td>a1</td>
+                    <td>ABC123</td>
+                    <td>22K916</td>
+                    <td class="upload-cell">
+                        <input type="file" accept="image/*" data-type="article">
+                        <span class="upload-status"></span>
+                    </td>
+                    <td class="upload-cell">
+                        <input type="file" accept="image/*" data-type="huid">
+                        <span class="upload-status"></span>
+                    </td>
+                </tr>
+                <tr data-tag="a2">
+                    <td>2</td>
+                    <td>a2</td>
+                    <td>DEF456</td>
+                    <td>22K916</td>
+                    <td class="upload-cell">
+                        <input type="file" accept="image/*" data-type="article">
+                        <span class="upload-status"></span>
+                    </td>
+                    <td class="upload-cell">
+                        <input type="file" accept="image/*" data-type="huid">
+                        <span class="upload-status"></span>
+                    </td>
+                </tr>
+                <tr data-tag="a3">
+                    <td>3</td>
+                    <td>a3</td>
+                    <td>GHI789</td>
+                    <td>18K750</td>
+                    <td class="upload-cell">
+                        <input type="file" accept="image/*" data-type="article">
+                        <span class="upload-status"></span>
+                    </td>
+                    <td class="upload-cell">
+                        <input type="file" accept="image/*" data-type="huid">
+                        <span class="upload-status"></span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h2>Extension Test Instructions</h2>
+        <ol>
+            <li>Load the browser extension from <code>browser-extension</code> folder</li>
+            <li>Click the extension icon in your toolbar</li>
+            <li>You should see "Session Active" if the extension detects this page as "logged in"</li>
+            <li>The extension looks for the logout button to detect login state</li>
+            <li>Click "Refresh Queue" to fetch items from the backend</li>
+        </ol>
+
+        <h2>Console Output</h2>
+        <div id="console" style="background: #1e1e1e; color: #0f0; padding: 15px; font-family: monospace; height: 150px; overflow-y: auto; border-radius: 4px;">
+            <div>Ready for testing...</div>
+        </div>
+    </div>
+
+    <script>
+        function log(msg) {
+            const console = document.getElementById('console');
+            const line = document.createElement('div');
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            console.appendChild(line);
+            console.scrollTop = console.scrollHeight;
+        }
+
+        function toggleLogin() {
+            const status = document.getElementById('login-status');
+            const btn = document.getElementById('logout-btn');
+
+            if (status.classList.contains('logged-in')) {
+                status.classList.remove('logged-in');
+                status.classList.add('logged-out');
+                status.innerHTML = '<strong>Status:</strong> Not logged in <button id="logout-btn" class="btn btn-primary" onclick="toggleLogin()">Login</button>';
+                log('User logged out');
+            } else {
+                status.classList.remove('logged-out');
+                status.classList.add('logged-in');
+                status.innerHTML = '<strong>Status:</strong> Logged in as test_operator <button id="logout-btn" class="btn btn-danger" onclick="toggleLogin()">Logout</button>';
+                log('User logged in');
+            }
+        }
+
+        // Log file selections
+        document.querySelectorAll('input[type="file"]').forEach(input => {
+            input.addEventListener('change', (e) => {
+                const row = e.target.closest('tr');
+                const tag = row.dataset.tag;
+                const type = e.target.dataset.type;
+                const file = e.target.files[0];
+                if (file) {
+                    log(`File selected for ${tag} (${type}): ${file.name}`);
+                    e.target.nextElementSibling.textContent = '✓';
+                    e.target.nextElementSibling.style.color = 'green';
+                }
+            });
+        });
+
+        log('Test page loaded');
+        log('Extension should detect login state from the Logout button');
+    </script>
+</body>
+</html>
