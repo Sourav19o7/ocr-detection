@@ -963,34 +963,36 @@ async def search_results(
 
 @app.get("/stage3/search/tags")
 async def search_tag_ids(
-    q: str = Query(..., min_length=1, description="Search query for tag ID"),
+    q: str = Query(..., min_length=1, description="Search query for tag ID or HUID"),
     limit: int = Query(10, ge=1, le=50, description="Max results to return"),
 ):
     """
-    Search for tag IDs with partial matching.
-    Returns matching tag IDs with expected_huid, sorted by relevance:
-    - Exact match first
+    Search for items by tag ID or expected HUID with partial matching.
+    Returns matching items with tag_id and expected_huid, sorted by relevance:
+    - Exact tag_id match first
+    - Exact HUID match
     - Tags with suffixes like _1, _2 (sorted numerically)
-    - Other prefix matches
-    - Contains matches
+    - Other prefix/contains matches
     """
     conn = db._get_connection()
     cursor = conn.cursor()
 
-    # Search for tags containing the query string, include expected_huid
+    # Search for tags matching by tag_id OR expected_huid
     cursor.execute(
         """SELECT tag_id, expected_huid FROM batch_items
-           WHERE tag_id LIKE ? OR tag_id LIKE ?
+           WHERE tag_id LIKE ? OR tag_id LIKE ? OR expected_huid LIKE ?
            ORDER BY
              CASE
                WHEN tag_id = ? THEN 0
-               WHEN tag_id LIKE ? THEN 1
+               WHEN expected_huid = ? THEN 1
                WHEN tag_id LIKE ? THEN 2
-               ELSE 3
+               WHEN expected_huid LIKE ? THEN 3
+               WHEN tag_id LIKE ? THEN 4
+               ELSE 5
              END,
              tag_id
            LIMIT ?""",
-        (f"%{q}%", f"{q}_%", q, f"{q}_%", f"{q}%", limit)
+        (f"%{q}%", f"{q}_%", f"%{q}%", q, q, f"{q}_%", f"{q}%", f"{q}%", limit)
     )
     rows = cursor.fetchall()
     conn.close()
@@ -1000,23 +1002,34 @@ async def search_tag_ids(
     # Sort tags with numeric suffixes properly (e.g., _1, _2, _10 instead of _1, _10, _2)
     def sort_key(item):
         tag = item["tag_id"]
+        huid = item["expected_huid"] or ""
+
+        # Exact tag match
+        if tag.lower() == q.lower():
+            return (0, 0, tag)
+        # Exact HUID match
+        if huid.lower() == q.lower():
+            return (1, 0, tag)
         # Check if tag has a numeric suffix like _1, _2
-        if tag.startswith(q) and "_" in tag[len(q):]:
+        if tag.lower().startswith(q.lower()) and "_" in tag[len(q):]:
             suffix = tag[len(q):]
             if suffix.startswith("_"):
                 try:
                     num = int(suffix[1:])
-                    return (0 if tag == q else 1, num, tag)
+                    return (2, num, tag)
                 except ValueError:
                     pass
-        # Exact match
-        if tag == q:
-            return (0, 0, tag)
-        # Starts with query
-        if tag.startswith(q):
-            return (2, 0, tag)
-        # Contains query
-        return (3, 0, tag)
+        # Tag starts with query
+        if tag.lower().startswith(q.lower()):
+            return (3, 0, tag)
+        # HUID starts with query
+        if huid.lower().startswith(q.lower()):
+            return (4, 0, tag)
+        # Tag contains query
+        if q.lower() in tag.lower():
+            return (5, 0, tag)
+        # HUID contains query
+        return (6, 0, tag)
 
     results.sort(key=sort_key)
 

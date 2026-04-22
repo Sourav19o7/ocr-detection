@@ -50,7 +50,47 @@ function render(el, data, { compact }) {
   const bySlot = { 1: null, 2: null, 3: null };
   (images.artifacts || []).forEach(a => { if (a.slot >= 1 && a.slot <= 3) bySlot[a.slot] = a; });
 
+  // Show alert for HUID mismatch
+  const huidMismatch = data.huid_match === false;
+  if (huidMismatch && !sessionStorage.getItem(`huid_mismatch_alert_${data.tag_id}`)) {
+    // Use setTimeout to show alert after render
+    setTimeout(() => {
+      modal.open({
+        title: "HUID Mismatch Detected",
+        width: 400,
+        body: (container) => {
+          container.innerHTML = `
+            <div class="alert-content" style="text-align:center; padding:16px 0;">
+              <div style="color:var(--danger); margin-bottom:16px;">
+                <i data-lucide="alert-triangle" style="width:48px;height:48px;"></i>
+              </div>
+              <p style="margin:0 0 12px; font-size:15px;">
+                The actual HUID does not match the expected HUID for this item.
+              </p>
+              <div style="background:var(--surface-2); border-radius:var(--radius-sm); padding:12px; text-align:left; font-size:13px;">
+                <div style="margin-bottom:8px;"><strong>Expected:</strong> <span class="mono">${escapeHtml(data.expected_huid || "—")}</span></div>
+                <div><strong>Actual:</strong> <span class="mono">${escapeHtml(composedActualHuid(data) || "—")}</span></div>
+              </div>
+            </div>
+          `;
+          refreshIcons(container);
+        },
+        footer: (container) => {
+          container.innerHTML = `<button class="btn btn-primary" id="alert-dismiss">Acknowledge</button>`;
+          container.querySelector("#alert-dismiss").addEventListener("click", () => {
+            sessionStorage.setItem(`huid_mismatch_alert_${data.tag_id}`, "1");
+            modal.close();
+          });
+        },
+      });
+    }, 100);
+  }
+
+  // Build status banner if decision is set
+  const statusBanner = buildStatusBanner(data);
+
   el.innerHTML = html`
+    ${raw(statusBanner)}
     <div class="preview">
       <div>
         <div class="viewer">
@@ -76,8 +116,8 @@ function render(el, data, { compact }) {
           </div>
         </div>
 
-        <div class="card meta-card">
-          <h3>HUID</h3>
+        <div class="card meta-card${data.huid_match === false ? ' huid-mismatch' : ''}">
+          <h3>HUID${raw(data.huid_match === false ? ' <span class="mismatch-badge">Mismatch</span>' : '')}</h3>
           <div class="huid-compare">
             <div class="slot"><span class="lbl">Expected</span>${escapeHtml(data.expected_huid || "—")}</div>
             <div class="equals ${data.huid_match === true ? "ok" : data.huid_match === false ? "bad" : ""}">
@@ -120,8 +160,8 @@ function render(el, data, { compact }) {
     ${raw(compact ? "" : `
       <div class="action-bar" role="toolbar" aria-label="Item actions">
         <button class="btn btn-tertiary" data-action="manual_review">Request re-capture</button>
-        <button class="btn btn-danger"   data-action="rejected">Reject</button>
-        <button class="btn btn-primary"  data-action="approved">Approve</button>
+        <button class="btn btn-danger"   data-action="rejected">Reject <kbd>R</kbd></button>
+        <button class="btn btn-primary"  data-action="approved">Approve <kbd>A</kbd></button>
       </div>
     `)}
   `;
@@ -151,6 +191,36 @@ function wireDecisionBar(el, data) {
   bar.querySelectorAll("button[data-action]").forEach((btn) => {
     btn.addEventListener("click", () => handleDecision(el, bar, btn, data));
   });
+
+  // Add keyboard shortcuts for approve/reject
+  const keyboardHandler = (e) => {
+    // Skip if typing in an input/textarea or if modal is open
+    const tag = document.activeElement?.tagName?.toLowerCase();
+    if (tag === "input" || tag === "textarea" || document.activeElement?.isContentEditable) return;
+    if (document.querySelector(".modal.open")) return;
+
+    // A = Approve
+    if (e.key === "a" || e.key === "A") {
+      e.preventDefault();
+      const approveBtn = bar.querySelector('[data-action="approved"]');
+      if (approveBtn && !approveBtn.hasAttribute("aria-disabled")) {
+        approveBtn.click();
+      }
+    }
+    // R = Reject
+    if (e.key === "r" || e.key === "R") {
+      e.preventDefault();
+      const rejectBtn = bar.querySelector('[data-action="rejected"]');
+      if (rejectBtn && !rejectBtn.hasAttribute("aria-disabled")) {
+        rejectBtn.click();
+      }
+    }
+  };
+
+  document.addEventListener("keydown", keyboardHandler);
+
+  // Store reference for cleanup
+  el._keyboardHandler = keyboardHandler;
 }
 
 function handleDecision(root, bar, btn, data) {
@@ -268,6 +338,24 @@ function wireGallery(el, { tagId, huid, bySlot }) {
     }
   };
 
+  // Make large preview clickable when empty - opens HUID upload dialog
+  large.addEventListener("click", () => {
+    if (large.classList.contains("empty")) {
+      openPicker(tagId, "huid", 0);
+    }
+  });
+  // Make it visually indicate it's clickable
+  if (large.classList.contains("empty")) {
+    large.style.cursor = "pointer";
+    large.setAttribute("role", "button");
+    large.setAttribute("tabindex", "0");
+    large.innerHTML = `<div class="empty-placeholder"><i data-lucide="image-plus"></i><span>Click to add HUID image</span></div>`;
+    refreshIcons(large);
+    large.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); large.click(); }
+    });
+  }
+
   strip.querySelectorAll(".tile").forEach((tile) => {
     const { type, slot } = tile.dataset;
     const slotNum = Number(slot);
@@ -377,4 +465,45 @@ function confidenceBar(value) {
   const pct = Math.max(0, Math.min(1, value)) * 100;
   const color = value >= 0.85 ? "var(--success)" : value >= 0.5 ? "var(--warning)" : "var(--danger)";
   return `<div class="progress" style="width:100%"><span style="width:${pct}%; background:${color}"></span></div>`;
+}
+
+function buildStatusBanner(data) {
+  const decision = data.decision;
+  if (!decision || decision === "pending") return "";
+
+  const bannerConfig = {
+    approved: {
+      class: "status-banner-approved",
+      icon: "check-circle",
+      title: "Approved",
+      message: "This item has been approved and marked as complete."
+    },
+    rejected: {
+      class: "status-banner-rejected",
+      icon: "x-circle",
+      title: "Rejected",
+      message: data.rejection_reasons?.length
+        ? `Reasons: ${data.rejection_reasons.join(", ")}`
+        : "This item has been rejected."
+    },
+    manual_review: {
+      class: "status-banner-review",
+      icon: "alert-circle",
+      title: "Re-capture Requested",
+      message: "This item needs new images captured."
+    }
+  };
+
+  const config = bannerConfig[decision];
+  if (!config) return "";
+
+  return `
+    <div class="status-banner ${config.class}">
+      <i data-lucide="${config.icon}"></i>
+      <div class="status-banner-content">
+        <strong>${config.title}</strong>
+        <span>${config.message}</span>
+      </div>
+    </div>
+  `;
 }

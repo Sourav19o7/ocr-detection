@@ -19,7 +19,7 @@ export function mountTopbar(el, { breadcrumbs = [] } = {}) {
       <div class="search-wrap">
         <label class="search" aria-label="Search">
           ${icon("search")}
-          <input id="topbar-search" placeholder="Search by tag id…" autocomplete="off" />
+          <input id="topbar-search" placeholder="Search by tag ID or HUID…" autocomplete="off" />
           <kbd>/</kbd>
         </label>
         <div id="search-suggestions" class="search-suggestions hidden"></div>
@@ -64,12 +64,19 @@ export function mountTopbar(el, { breadcrumbs = [] } = {}) {
 
       suggestions.innerHTML = results.map((result, i) => {
         const tag = result.tag_id;
-        const huid = result.expected_huid;
-        const isExact = tag.toLowerCase() === query.toLowerCase();
-        const highlighted = highlightMatch(tag, query);
-        return `<div class="suggestion-item${isExact ? ' exact' : ''}" data-index="${i}" data-tag="${escapeHtml(tag)}">
-          <div class="suggestion-tag">${highlighted}</div>
-          ${huid ? `<div class="suggestion-huid">HUID: <span class="mono">${escapeHtml(huid)}</span></div>` : ''}
+        const huid = result.expected_huid || "";
+        const isExactTag = tag.toLowerCase() === query.toLowerCase();
+        const isExactHuid = huid.toLowerCase() === query.toLowerCase();
+        const tagMatchesQuery = tag.toLowerCase().includes(query.toLowerCase());
+        const huidMatchesQuery = huid.toLowerCase().includes(query.toLowerCase());
+
+        // Highlight the matching field
+        const highlightedTag = tagMatchesQuery ? highlightMatch(tag, query) : escapeHtml(tag);
+        const highlightedHuid = huidMatchesQuery ? highlightMatch(huid, query) : escapeHtml(huid);
+
+        return `<div class="suggestion-item${isExactTag || isExactHuid ? ' exact' : ''}" data-index="${i}" data-tag="${escapeHtml(tag)}">
+          <div class="suggestion-tag">${highlightedTag}</div>
+          ${huid ? `<div class="suggestion-huid">HUID: <span class="mono">${highlightedHuid}</span></div>` : ''}
         </div>`;
       }).join("");
 

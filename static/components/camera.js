@@ -6,6 +6,7 @@ import { toast } from "./toast.js";
 import { refreshIcons } from "../lib/format.js";
 
 let activeStream = null;
+let cameraKeyHandler = null;
 
 // Helper to get capture button (it's rendered after body, so we query dynamically)
 function getCaptureBtn() {
@@ -23,7 +24,14 @@ export function openCameraCapture({ onCapture, filename = "capture.jpg" } = {}) 
   modal.open({
     title: "Capture Image",
     width: 560,
-    onClose: () => stopStream(),
+    onClose: () => {
+      stopStream();
+      // Remove keyboard handler
+      if (cameraKeyHandler) {
+        document.removeEventListener("keydown", cameraKeyHandler);
+        cameraKeyHandler = null;
+      }
+    },
     body: (container) => {
       container.innerHTML = `
         <div class="camera-container">
@@ -50,9 +58,9 @@ export function openCameraCapture({ onCapture, filename = "capture.jpg" } = {}) 
     },
     footer: (container) => {
       container.innerHTML = `
-        <button class="btn btn-tertiary" id="camera-cancel">Cancel</button>
+        <button class="btn btn-tertiary" id="camera-cancel">Cancel <kbd>Esc</kbd></button>
         <button class="btn btn-primary" id="camera-capture" disabled>
-          <i data-lucide="camera"></i> Capture
+          <i data-lucide="camera"></i> Capture <kbd>Space</kbd>
         </button>
       `;
       refreshIcons(container);
@@ -60,6 +68,18 @@ export function openCameraCapture({ onCapture, filename = "capture.jpg" } = {}) 
       container.querySelector("#camera-capture").addEventListener("click", () => {
         captureImage(onCapture, filename);
       });
+
+      // Keyboard shortcut for capture (Space bar)
+      cameraKeyHandler = (e) => {
+        if (e.key === " " || e.key === "Spacebar") {
+          e.preventDefault();
+          const btn = getCaptureBtn();
+          if (btn && !btn.disabled) {
+            captureImage(onCapture, filename);
+          }
+        }
+      };
+      document.addEventListener("keydown", cameraKeyHandler);
     },
   });
 }

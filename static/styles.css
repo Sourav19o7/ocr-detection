@@ -421,9 +421,34 @@ h3 { font-size: 14px; color: var(--text-muted); text-transform: uppercase; lette
   display: flex; align-items: center; justify-content: center;
   color: var(--text-muted);
 }
-.viewer .large.empty::before {
-  content: "No image";
-  font-size: 13px;
+.viewer .large.empty {
+  border: 2px dashed var(--border-strong);
+  transition: border-color 150ms, background 150ms;
+}
+.viewer .large.empty:hover {
+  border-color: var(--accent);
+  background: var(--surface-2);
+}
+.viewer .large .empty-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+}
+.viewer .large .empty-placeholder i {
+  width: 48px;
+  height: 48px;
+  opacity: 0.5;
+}
+.viewer .large .empty-placeholder span {
+  font-size: 14px;
+}
+.viewer .large.empty:hover .empty-placeholder {
+  color: var(--accent);
+}
+.viewer .large.empty:hover .empty-placeholder i {
+  opacity: 1;
 }
 .gallery-strip {
   display: grid;
@@ -498,6 +523,33 @@ h3 { font-size: 14px; color: var(--text-muted); text-transform: uppercase; lette
 }
 .huid-compare .equals.ok { background: #ECFDF5; color: var(--success); border-color: #A7F3D0; }
 .huid-compare .equals.bad { background: #FEF2F2; color: var(--danger); border-color: #FECACA; }
+
+/* HUID mismatch card styling */
+.meta-card.huid-mismatch {
+  border: 2px solid var(--danger);
+  background: #FEF2F2;
+  animation: pulse-danger 2s ease-in-out infinite;
+}
+.meta-card.huid-mismatch h3 {
+  color: var(--danger);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mismatch-badge {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--danger);
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+@keyframes pulse-danger {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+}
 
 /* --- drop zones ----------------------------------------------------------- */
 
@@ -635,6 +687,68 @@ details.raw .raw-body {
   padding: var(--space-3);
   display: flex; justify-content: flex-end; gap: var(--space-2);
   margin-top: var(--space-5);
+}
+
+/* Keyboard shortcut hints in buttons */
+.btn kbd {
+  display: inline-block;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 5px;
+  margin-left: 6px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.3);
+}
+.btn-tertiary kbd {
+  background: var(--surface-2);
+  border-color: var(--border);
+  color: var(--text-muted);
+}
+
+/* --- status banner -------------------------------------------------------- */
+
+.status-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  margin-bottom: var(--space-4);
+}
+.status-banner i {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+.status-banner-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.status-banner-content strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+.status-banner-content span {
+  font-size: 13px;
+  opacity: 0.9;
+}
+.status-banner-approved {
+  background: #ECFDF5;
+  border: 1px solid #A7F3D0;
+  color: #065F46;
+}
+.status-banner-rejected {
+  background: #FEF2F2;
+  border: 1px solid #FECACA;
+  color: #991B1B;
+}
+.status-banner-review {
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  color: #92400E;
 }
 
 /* --- upload flow ---------------------------------------------------------- */
