@@ -1,4 +1,7 @@
-import { html, raw, refreshIcons, icon } from "../lib/format.js";
+import { html, raw, refreshIcons, icon, escapeHtml } from "../lib/format.js";
+import { api } from "../api.js";
+
+let searchDebounceTimer = null;
 
 export function mountTopbar(el, { breadcrumbs = [] } = {}) {
   const crumbs = breadcrumbs
@@ -13,23 +16,158 @@ export function mountTopbar(el, { breadcrumbs = [] } = {}) {
     </a>
     <nav class="breadcrumbs">${raw(crumbs)}</nav>
     <div class="row" style="gap: 12px;">
-      <label class="search" aria-label="Search">
-        ${icon("search")}
-        <input id="topbar-search" placeholder="Search by tag id…" />
-        <kbd>/</kbd>
-      </label>
+      <div class="search-wrap">
+        <label class="search" aria-label="Search">
+          ${icon("search")}
+          <input id="topbar-search" placeholder="Search by tag id…" autocomplete="off" />
+          <kbd>/</kbd>
+        </label>
+        <div id="search-suggestions" class="search-suggestions hidden"></div>
+      </div>
       <a class="btn btn-secondary" href="#/downloads">${icon("download")}Downloads</a>
       <a class="btn btn-primary" href="#/upload">${icon("upload")}Upload batch</a>
     </div>
   `;
 
   const input = el.querySelector("#topbar-search");
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      const v = input.value.trim();
-      if (v) location.hash = `#/item/${encodeURIComponent(v)}`;
+  const suggestions = el.querySelector("#search-suggestions");
+  let selectedIndex = -1;
+
+  // Handle input for live search
+  input.addEventListener("input", () => {
+    const q = input.value.trim();
+    if (searchDebounceTimer) clearTimeout(searchDebounceTimer);
+
+    if (q.length < 1) {
+      hideSuggestions();
+      return;
     }
-    if (e.key === "Escape") input.blur();
+
+    searchDebounceTimer = setTimeout(() => searchTags(q), 200);
+  });
+
+  async function searchTags(query) {
+    try {
+      const resp = await api.get(`/stage3/search/tags?q=${encodeURIComponent(query)}&limit=8`);
+      const tags = resp.tags || [];
+
+      if (tags.length === 0) {
+        suggestions.innerHTML = `<div class="suggestion-empty">No matching tags found</div>`;
+        suggestions.classList.remove("hidden");
+        selectedIndex = -1;
+        return;
+      }
+
+      // Check if exact match exists
+      const exactMatch = tags.find(t => t.toLowerCase() === query.toLowerCase());
+
+      suggestions.innerHTML = tags.map((tag, i) => {
+        const isExact = tag.toLowerCase() === query.toLowerCase();
+        const highlighted = highlightMatch(tag, query);
+        return `<div class="suggestion-item${isExact ? ' exact' : ''}" data-index="${i}" data-tag="${escapeHtml(tag)}">${highlighted}</div>`;
+      }).join("");
+
+      suggestions.classList.remove("hidden");
+      selectedIndex = -1;
+
+      // Add click handlers
+      suggestions.querySelectorAll(".suggestion-item").forEach(item => {
+        item.addEventListener("click", () => {
+          const tag = item.dataset.tag;
+          input.value = tag;
+          hideSuggestions();
+          location.hash = `#/item/${encodeURIComponent(tag)}`;
+        });
+      });
+
+    } catch (err) {
+      console.error("Search error:", err);
+      hideSuggestions();
+    }
+  }
+
+  function highlightMatch(tag, query) {
+    const idx = tag.toLowerCase().indexOf(query.toLowerCase());
+    if (idx === -1) return escapeHtml(tag);
+    const before = tag.slice(0, idx);
+    const match = tag.slice(idx, idx + query.length);
+    const after = tag.slice(idx + query.length);
+    return `${escapeHtml(before)}<mark>${escapeHtml(match)}</mark>${escapeHtml(after)}`;
+  }
+
+  function hideSuggestions() {
+    suggestions.classList.add("hidden");
+    suggestions.innerHTML = "";
+    selectedIndex = -1;
+  }
+
+  function updateSelection() {
+    const items = suggestions.querySelectorAll(".suggestion-item");
+    items.forEach((item, i) => {
+      item.classList.toggle("selected", i === selectedIndex);
+    });
+    if (selectedIndex >= 0 && items[selectedIndex]) {
+      items[selectedIndex].scrollIntoView({ block: "nearest" });
+    }
+  }
+
+  input.addEventListener("keydown", (e) => {
+    const items = suggestions.querySelectorAll(".suggestion-item");
+    const isOpen = !suggestions.classList.contains("hidden") && items.length > 0;
+
+    if (e.key === "ArrowDown" && isOpen) {
+      e.preventDefault();
+      selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+      updateSelection();
+      return;
+    }
+
+    if (e.key === "ArrowUp" && isOpen) {
+      e.preventDefault();
+      selectedIndex = Math.max(selectedIndex - 1, 0);
+      updateSelection();
+      return;
+    }
+
+    if (e.key === "Enter") {
+      if (isOpen && selectedIndex >= 0 && items[selectedIndex]) {
+        e.preventDefault();
+        const tag = items[selectedIndex].dataset.tag;
+        input.value = tag;
+        hideSuggestions();
+        location.hash = `#/item/${encodeURIComponent(tag)}`;
+      } else {
+        const v = input.value.trim();
+        if (v) {
+          hideSuggestions();
+          location.hash = `#/item/${encodeURIComponent(v)}`;
+        }
+      }
+      return;
+    }
+
+    if (e.key === "Escape") {
+      hideSuggestions();
+      input.blur();
+    }
+  });
+
+  // Hide suggestions when clicking outside
+  document.addEventListener("click", (e) => {
+    if (!el.contains(e.target)) {
+      hideSuggestions();
+    }
+  });
+
+  // Focus input on "/" key
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "/" && document.activeElement !== input && !e.ctrlKey && !e.metaKey) {
+      const tag = document.activeElement?.tagName?.toLowerCase();
+      if (tag !== "input" && tag !== "textarea" && !document.activeElement?.isContentEditable) {
+        e.preventDefault();
+        input.focus();
+      }
+    }
   });
 
   refreshIcons(el);

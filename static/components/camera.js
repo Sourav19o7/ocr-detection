@@ -7,6 +7,11 @@ import { refreshIcons } from "../lib/format.js";
 
 let activeStream = null;
 
+// Helper to get capture button (it's rendered after body, so we query dynamically)
+function getCaptureBtn() {
+  return document.querySelector("#camera-capture");
+}
+
 /**
  * Opens a camera capture modal with device selection and preview.
  * @param {Object} options
@@ -15,7 +20,7 @@ let activeStream = null;
  * @returns {void}
  */
 export function openCameraCapture({ onCapture, filename = "capture.jpg" } = {}) {
-  const el = modal.open({
+  modal.open({
     title: "Capture Image",
     width: 560,
     onClose: () => stopStream(),
@@ -33,14 +38,15 @@ export function openCameraCapture({ onCapture, filename = "capture.jpg" } = {}) 
             <canvas id="camera-canvas" style="display:none"></canvas>
             <div id="camera-placeholder" class="camera-placeholder">
               <i data-lucide="camera-off"></i>
-              <span>No camera selected</span>
+              <span>Initializing camera...</span>
             </div>
           </div>
           <div id="camera-error" class="camera-error hidden"></div>
         </div>
       `;
       refreshIcons(container);
-      initCamera(container, onCapture, filename);
+      // Delay init slightly to ensure footer is rendered
+      setTimeout(() => initCamera(container, onCapture, filename), 50);
     },
     footer: (container) => {
       container.innerHTML = `
@@ -63,7 +69,6 @@ async function initCamera(container, onCapture, filename) {
   const video = container.querySelector("#camera-video");
   const placeholder = container.querySelector("#camera-placeholder");
   const errorEl = container.querySelector("#camera-error");
-  const captureBtn = document.querySelector("#camera-capture");
 
   // Check if camera API is available
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -73,6 +78,7 @@ async function initCamera(container, onCapture, filename) {
 
   try {
     // First request permission to access any camera to enumerate devices
+    placeholder.querySelector("span").textContent = "Requesting camera access...";
     const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
     tempStream.getTracks().forEach(track => track.stop());
 
@@ -91,8 +97,8 @@ async function initCamera(container, onCapture, filename) {
     ).join("");
 
     // Start with first camera
-    select.addEventListener("change", () => startStream(select.value, video, placeholder, errorEl, captureBtn));
-    await startStream(videoDevices[0].deviceId, video, placeholder, errorEl, captureBtn);
+    select.addEventListener("change", () => startStream(select.value, video, placeholder, errorEl));
+    await startStream(videoDevices[0].deviceId, video, placeholder, errorEl);
 
   } catch (err) {
     console.error("Camera init error:", err);
@@ -106,9 +112,13 @@ async function initCamera(container, onCapture, filename) {
   }
 }
 
-async function startStream(deviceId, video, placeholder, errorEl, captureBtn) {
+async function startStream(deviceId, video, placeholder, errorEl) {
   // Stop any existing stream
   stopStream();
+
+  // Disable capture button while switching
+  const captureBtn = getCaptureBtn();
+  if (captureBtn) captureBtn.disabled = true;
 
   try {
     // Build constraints - don't mix exact deviceId with facingMode
@@ -132,16 +142,27 @@ async function startStream(deviceId, video, placeholder, errorEl, captureBtn) {
     // Enable capture button once video is actually playing
     video.onloadedmetadata = () => {
       video.play().then(() => {
-        if (captureBtn) captureBtn.disabled = false;
+        const btn = getCaptureBtn();
+        if (btn) btn.disabled = false;
       }).catch(err => {
         console.error("Video play error:", err);
+        // Still try to enable button - autoplay might be restricted but video should work
+        const btn = getCaptureBtn();
+        if (btn) btn.disabled = false;
       });
+    };
+
+    // Also listen for canplay as a fallback
+    video.oncanplay = () => {
+      const btn = getCaptureBtn();
+      if (btn && btn.disabled) btn.disabled = false;
     };
 
   } catch (err) {
     console.error("Stream error:", err);
     showError(errorEl, placeholder, `Could not start camera: ${err.message}`);
-    if (captureBtn) captureBtn.disabled = true;
+    const btn = getCaptureBtn();
+    if (btn) btn.disabled = true;
   }
 }
 

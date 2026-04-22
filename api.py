@@ -961,6 +961,42 @@ async def search_results(
     return {"status": "success", "results": [], "message": "Please provide search criteria"}
 
 
+@app.get("/stage3/search/tags")
+async def search_tag_ids(
+    q: str = Query(..., min_length=1, description="Search query for tag ID"),
+    limit: int = Query(10, ge=1, le=50, description="Max results to return"),
+):
+    """
+    Search for tag IDs with partial matching.
+    Returns matching tag IDs sorted by relevance (exact match first, then prefix, then contains).
+    """
+    conn = db._get_connection()
+    cursor = conn.cursor()
+
+    # Search for tags containing the query string
+    cursor.execute(
+        """SELECT DISTINCT tag_id FROM batch_items
+           WHERE tag_id LIKE ?
+           ORDER BY
+             CASE
+               WHEN tag_id = ? THEN 0
+               WHEN tag_id LIKE ? THEN 1
+               ELSE 2
+             END,
+             tag_id
+           LIMIT ?""",
+        (f"%{q}%", q, f"{q}%", limit)
+    )
+    rows = cursor.fetchall()
+    conn.close()
+
+    return {
+        "status": "success",
+        "query": q,
+        "tags": [row["tag_id"] for row in rows]
+    }
+
+
 # =============================================================================
 # S3 Presigned URL Endpoints (for direct browser uploads)
 # =============================================================================
