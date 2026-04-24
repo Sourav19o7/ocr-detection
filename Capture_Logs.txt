@@ -1,0 +1,57 @@
+============================================================
+  Session started: 2026-04-23 14:34:16
+============================================================
+14:34:17 [INFO ] BAC LaserCapture starting…
+14:34:17 [INFO ] Save dir : D:\LaserCapture\captures
+14:34:17 [INFO ] Log dir  : D:\LaserCapture\logs
+14:34:17 [INFO ] HUID API : http://103.133.214.232:8026/api/grn/HUID_API
+14:34:17 [INFO ] Branch   : branchName
+14:34:29 [INFO ] Opening camera 0 with backend DSHOW
+14:34:32 [OK   ] Camera opened — 1280x720
+14:34:32 [OK   ] App ready — listening for keypress
+14:34:32 [INFO ] F9  = manual capture
+14:34:32 [INFO ] F12 = automated flow (EZCAD2 → ESC → capture → F1)
+14:34:32 [INFO ] Tray → Exit  or  Ctrl+Shift+Q to quit
+14:34:32 [OK   ] Live preview window opened (press Q to hide)
+14:34:33 [OK   ] Camera reader loop ready
+14:35:16 [INFO ] F12 pressed — automated flow triggered
+14:35:16 [INFO ] F12 triggered — automated capture flow starting
+14:35:16 [INFO ] Window found: 'EzCad-Lite  - ct_API.ezd'
+14:35:17 [OK   ] Marking software focused
+14:35:17 [INFO ] Sending ESC → EZCAD2 preview OFF
+14:35:18 [INFO ] HUID API call → {'branchName': 'branchName'}
+14:35:19 [INFO ] HUID API HTTP 401
+14:35:19 [ERROR] HUID API failed: 401 Client Error: Unauthorized for url: http://103.133.214.232:8026/api/grn/HUID_API?branchName=branchName
+14:35:19 [WARN ] Fallback: using timestamp-based filename
+14:35:19 [INFO ] Grabbing frame from camera…
+14:35:19 [INFO ] HUID API call → {'branchName': 'branchName', 'Jobno': '2026-04-23', 'Tagid': 'mark_20260423_143519_313'}
+14:35:19 [INFO ] HUID API HTTP 401
+14:35:19 [ERROR] HUID API failed: 401 Client Error: Unauthorized for url: http://103.133.214.232:8026/api/grn/HUID_API?branchName=branchName&Jobno=2026-04-23&Tagid=mark_20260423_143519_313
+14:35:19 [WARN ] Fallback: using timestamp-based filename
+14:35:19 [WARN ] HUID unavailable — fallback filename: mark_20260423_143519_530.jpg
+14:35:19 [OK   ] Image saved: D:\LaserCapture\captures\2026-04-23\mark_20260423_143519_530.jpg
+14:35:19 [INFO ] S3 upload → requesting presigned URL for mark_20260423_143519_530.jpg
+14:35:19 [INFO ] Waiting 5.0s before sending F1…
+14:35:25 [INFO ] Sending F1 → EZCAD2 preview ON
+14:35:25 [OK   ] Automated cycle complete
+14:35:41 [ERROR] S3 upload timed out for mark_20260423_143519_530
+14:36:45 [INFO ] F12 pressed — automated flow triggered
+14:36:46 [INFO ] F12 triggered — automated capture flow starting
+14:36:46 [INFO ] Window found: 'EzCad-Lite  - ct_API.ezd'
+14:36:46 [OK   ] Marking software focused
+14:36:46 [INFO ] Sending ESC → EZCAD2 preview OFF
+14:36:47 [INFO ] HUID API call → {'branchName': 'branchName'}
+14:36:47 [INFO ] HUID API HTTP 401
+14:36:47 [ERROR] HUID API failed: 401 Client Error: Unauthorized for url: http://103.133.214.232:8026/api/grn/HUID_API?branchName=branchName
+14:36:47 [WARN ] Fallback: using timestamp-based filename
+14:36:47 [INFO ] Grabbing frame from camera…
+14:36:47 [INFO ] HUID API call → {'branchName': 'branchName', 'Jobno': '2026-04-23', 'Tagid': 'mark_20260423_143647_744'}
+14:36:47 [INFO ] HUID API HTTP 401
+14:36:47 [ERROR] HUID API failed: 401 Client Error: Unauthorized for url: http://103.133.214.232:8026/api/grn/HUID_API?branchName=branchName&Jobno=2026-04-23&Tagid=mark_20260423_143647_744
+14:36:48 [WARN ] Fallback: using timestamp-based filename
+14:36:48 [WARN ] HUID unavailable — fallback filename: mark_20260423_143648_042.jpg
+14:36:48 [OK   ] Image saved: D:\LaserCapture\captures\2026-04-23\mark_20260423_143648_042.jpg
+14:36:48 [INFO ] S3 upload → requesting presigned URL for mark_20260423_143648_042.jpg
+14:36:48 [INFO ] Waiting 5.0s before sending F1…
+14:36:53 [INFO ] Sending F1 → EZCAD2 preview ON
+14:36:53 [OK   ] Automated cycle complete
