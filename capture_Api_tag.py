@@ -50,7 +50,6 @@ BRANCH_NAME              = "Hosur"
 HUID_API_TIMEOUT_SEC     = 10
 HUID_RESPONSE_TAGID_KEY  = "Tagid"
 HUID_RESPONSE_JOBNO_KEY  = "Jobno"
-DEFAULT_TAG_ID           = "69837"  # Static fallback tag ID for testing
 
 # ===== Marking software automation =====
 MARKING_WINDOW_TITLE_KEYWORD = "EzCad-Lite"
@@ -363,54 +362,49 @@ def preview_camera(index: int, backend_name: str, seconds: int = 5):
 # ===========================================================
 
 def fetch_huid_metadata(jobno: str = None, tagid: str = None) -> dict:
-    # TESTING MODE: Use static tag ID directly, skip HUID API
-    log(f"Using static tag ID: {DEFAULT_TAG_ID} (testing mode)", "INFO")
-    return {"tagid": DEFAULT_TAG_ID, "jobno": datetime.now().strftime("%Y-%m-%d"),
-            "raw": {}, "success": True}
+    params = {"branchName": BRANCH_NAME}
+    if jobno:
+        params["Jobno"] = jobno
+    if tagid:
+        params["Tagid"] = tagid
 
-    # --- Original HUID API code (disabled for testing) ---
-    # params = {"branchName": BRANCH_NAME}
-    # if jobno:
-    #     params["Jobno"] = jobno
-    # if tagid:
-    #     params["Tagid"] = tagid
-    #
-    # log(f"HUID API call → {params}", "INFO")
-    #
-    # try:
-    #     resp = requests.get(HUID_API_BASE, params=params, timeout=HUID_API_TIMEOUT_SEC)
-    #     log(f"HUID API HTTP {resp.status_code}", "INFO")
-    #     resp.raise_for_status()
-    #     data   = resp.json()
-    #     record = data[0] if isinstance(data, list) and data else data
-    #
-    #     fetched_tagid = (
-    #         record.get(HUID_RESPONSE_TAGID_KEY)
-    #         or record.get("tagid") or record.get("TagId") or record.get("tag_id")
-    #     )
-    #     fetched_jobno = (
-    #         record.get(HUID_RESPONSE_JOBNO_KEY)
-    #         or record.get("jobno") or record.get("JobNo") or record.get("job_no")
-    #     )
-    #
-    #     if fetched_tagid and fetched_jobno:
-    #         log(f"HUID OK → Tagid: {fetched_tagid}  Jobno: {fetched_jobno}", "OK")
-    #         return {"tagid": str(fetched_tagid), "jobno": str(fetched_jobno),
-    #                 "raw": record, "success": True}
-    #     else:
-    #         log(f"HUID response missing fields. Raw: {data}", "WARN")
-    #
-    # except requests.exceptions.Timeout:
-    #     log(f"HUID API timed out after {HUID_API_TIMEOUT_SEC}s", "ERROR")
-    # except requests.exceptions.ConnectionError as e:
-    #     log(f"HUID API connection error: {e}", "ERROR")
-    # except Exception as e:
-    #     log(f"HUID API failed: {e}", "ERROR")
-    #
-    # # Use static default tag ID for testing
-    # log(f"Fallback: using static tag ID {DEFAULT_TAG_ID}", "WARN")
-    # return {"tagid": DEFAULT_TAG_ID, "jobno": datetime.now().strftime("%Y-%m-%d"),
-    #         "raw": {}, "success": True}
+    log(f"HUID API call → {params}", "INFO")
+
+    try:
+        resp = requests.get(HUID_API_BASE, params=params, timeout=HUID_API_TIMEOUT_SEC)
+        log(f"HUID API HTTP {resp.status_code}", "INFO")
+        resp.raise_for_status()
+        data   = resp.json()
+        record = data[0] if isinstance(data, list) and data else data
+
+        fetched_tagid = (
+            record.get(HUID_RESPONSE_TAGID_KEY)
+            or record.get("tagid") or record.get("TagId") or record.get("tag_id")
+        )
+        fetched_jobno = (
+            record.get(HUID_RESPONSE_JOBNO_KEY)
+            or record.get("jobno") or record.get("JobNo") or record.get("job_no")
+        )
+
+        if fetched_tagid and fetched_jobno:
+            log(f"HUID OK → Tagid: {fetched_tagid}  Jobno: {fetched_jobno}", "OK")
+            return {"tagid": str(fetched_tagid), "jobno": str(fetched_jobno),
+                    "raw": record, "success": True}
+        else:
+            log(f"HUID response missing fields. Raw: {data}", "WARN")
+
+    except requests.exceptions.Timeout:
+        log(f"HUID API timed out after {HUID_API_TIMEOUT_SEC}s", "ERROR")
+    except requests.exceptions.ConnectionError as e:
+        log(f"HUID API connection error: {e}", "ERROR")
+    except Exception as e:
+        log(f"HUID API failed: {e}", "ERROR")
+
+    # Fallback: use timestamp-based filename
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+    log("Fallback: using timestamp-based filename", "WARN")
+    return {"tagid": f"mark_{ts}", "jobno": datetime.now().strftime("%Y-%m-%d"),
+            "raw": {}, "success": False}
 
 
 # ===========================================================
