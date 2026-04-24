@@ -36,12 +36,17 @@ LOGO_FILE = "bac_logo.png"
 TRAY_ICON_FILE = "tray.ico"
 APP_NAME = "LaserCapture"
 
-# OCR Upload API
-OCR_UPLOAD_API = "https://13-127-0-22.nip.io/api/get-ocr-upload-url"
+# OCR Upload API (S3 presigned URL for OCR processing)
+OCR_UPLOAD_API = "https://65-2-187-3.nip.io/api/get-ocr-upload-url"
+
+# ===== Hallmark QC API (for Manakonline upload queue) =====
+HQC_API_BASE     = "https://65-2-187-3.nip.io"  # Production EC2 server
+HQC_API_KEY      = ""                        # Set your API key if required
+HQC_UPLOAD_TIMEOUT = 30
 
 # ===== HUID API =====
 HUID_API_BASE            = "http://103.133.214.232:8026/api/grn/HUID_API"
-BRANCH_NAME              = "branchName"
+BRANCH_NAME              = "Hosur"
 HUID_API_TIMEOUT_SEC     = 10
 HUID_RESPONSE_TAGID_KEY  = "Tagid"
 HUID_RESPONSE_JOBNO_KEY  = "Jobno"
@@ -437,6 +442,60 @@ def upload_image_async(filepath: str, unique_id: str):
     threading.Thread(target=do_upload, daemon=True).start()
 
 
+def upload_to_hqc_api(filepath: str, tag_id: str, bis_job_no: str, image_type: str = "huid", branch: str = None):
+    """
+    Upload image to Hallmark QC API for Manakonline upload queue.
+
+    Args:
+        filepath: Path to the image file
+        tag_id: AHC Tag ID (e.g., "570001123111")
+        bis_job_no: BIS Job Number (e.g., "100166462")
+        image_type: "article" or "huid" (default: "huid")
+        branch: Branch name (optional)
+    """
+    def do_hqc_upload():
+        try:
+            log(f"HQC API → uploading {tag_id} ({image_type}) to queue", "INFO")
+
+            with open(filepath, "rb") as f:
+                files = {"file": (os.path.basename(filepath), f, "image/jpeg")}
+                data = {
+                    "tag_id": tag_id,
+                    "bis_job_no": bis_job_no,
+                    "image_type": image_type,
+                }
+                if branch:
+                    data["branch"] = branch
+
+                headers = {}
+                if HQC_API_KEY:
+                    headers["x-api-key"] = HQC_API_KEY
+
+                resp = requests.post(
+                    f"{HQC_API_BASE}/api/external/photo",
+                    files=files,
+                    data=data,
+                    headers=headers,
+                    timeout=HQC_UPLOAD_TIMEOUT
+                )
+                resp.raise_for_status()
+                result = resp.json()
+
+                if result.get("success"):
+                    log(f"HQC API OK: {tag_id} queued for Manakonline upload", "OK")
+                else:
+                    log(f"HQC API response: {result}", "WARN")
+
+        except requests.exceptions.Timeout:
+            log(f"HQC API timed out for {tag_id}", "ERROR")
+        except requests.exceptions.ConnectionError:
+            log(f"HQC API connection failed - is server running at {HQC_API_BASE}?", "ERROR")
+        except Exception as e:
+            log(f"HQC API upload failed: {e}", "ERROR")
+
+    threading.Thread(target=do_hqc_upload, daemon=True).start()
+
+
 # ===========================================================
 #  Marking software focus
 # ===========================================================
@@ -740,7 +799,20 @@ def save_image(cap, jobno: str = None, tagid: str = None):
     cv2.imwrite(filepath, frame, [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY])
     log(f"Image saved: {filepath}", "OK")
 
-    upload_image_async(filepath, meta["tagid"])
+    # Upload to S3 for OCR processing (disabled - using HQC API instead)
+    # upload_image_async(filepath, meta["tagid"])
+
+    # Upload to Hallmark QC API for Manakonline upload queue
+    if meta["success"]:
+        upload_to_hqc_api(
+            filepath=filepath,
+            tag_id=meta["tagid"],
+            bis_job_no=meta["jobno"],
+            image_type="huid",  # This is a HUID image capture
+            branch=BRANCH_NAME if BRANCH_NAME != "branchName" else None
+        )
+    else:
+        log("Skipping HQC upload - HUID API metadata not available", "WARN")
 
 
 def automated_capture_flow(cap):
