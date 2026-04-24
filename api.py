@@ -157,6 +157,8 @@ def compare_huids(actual_huid: str, expected_huid: str) -> bool:
     Compare HUIDs flexibly - handles cases where expected_huid contains
     full hallmark text (e.g., '22K91677WAX9') and actual_huid is just
     the 6-character HUID (e.g., '77WAX9').
+
+    Also handles spaces in HUIDs - e.g., expected='ABC 123' matches actual='ABC123'
     """
     if not actual_huid or not expected_huid:
         return False
@@ -164,27 +166,31 @@ def compare_huids(actual_huid: str, expected_huid: str) -> bool:
     actual = actual_huid.upper().strip()
     expected = expected_huid.upper().strip()
 
-    # Exact match
-    if actual == expected:
+    # Normalize: remove all spaces for comparison
+    actual_normalized = actual.replace(" ", "")
+    expected_normalized = expected.replace(" ", "")
+
+    # Exact match (with spaces removed)
+    if actual_normalized == expected_normalized:
         return True
 
     # Check if actual HUID is contained at the end of expected (common case)
     # e.g., expected='22K91677WAX9', actual='77WAX9'
-    if expected.endswith(actual):
+    if expected_normalized.endswith(actual_normalized):
         return True
 
     # Check if actual HUID is contained anywhere in expected
-    if actual in expected:
+    if actual_normalized in expected_normalized:
         return True
 
     # Extract 6-char alphanumeric sequences from expected and compare
     import re
-    expected_huids = re.findall(r'[A-Z0-9]{6}', expected)
+    expected_huids = re.findall(r'[A-Z0-9]{6}', expected_normalized)
     for exp_huid in expected_huids:
         # Skip pure numeric (likely purity codes like 916)
         if exp_huid.isdigit():
             continue
-        if exp_huid == actual:
+        if exp_huid == actual_normalized:
             return True
 
     return False

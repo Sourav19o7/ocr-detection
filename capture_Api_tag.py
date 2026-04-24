@@ -897,8 +897,12 @@ def save_image(cap):
         log("No frame available — capture aborted", "ERROR")
         return
 
+    # Wait 5 seconds before showing tag input dialog
+    log("Waiting 5s before Tag ID input...", "INFO")
+    time.sleep(7.0)
+
     # Ask for Tag ID after capturing the image
-    log("Waiting for Tag ID input...", "INFO")
+    log("Showing Tag ID input dialog...", "INFO")
     tag_id = ask_tag_id()
 
     if not tag_id:
