@@ -41,7 +41,7 @@ OCR_UPLOAD_API = "https://65-2-187-3.nip.io/api/get-ocr-upload-url"
 
 # ===== Hallmark QC API (for Manakonline upload queue) =====
 HQC_API_BASE     = "https://65-2-187-3.nip.io"  # Production EC2 server
-HQC_API_KEY      = ""                        # Set your API key if required
+HQC_API_KEY      = "test-camera-key-2024"       # API key for external access
 HQC_UPLOAD_TIMEOUT = 30
 
 # ===== HUID API =====
@@ -50,6 +50,7 @@ BRANCH_NAME              = "Hosur"
 HUID_API_TIMEOUT_SEC     = 10
 HUID_RESPONSE_TAGID_KEY  = "Tagid"
 HUID_RESPONSE_JOBNO_KEY  = "Jobno"
+DEFAULT_TAG_ID           = "69837"  # Static fallback tag ID for testing
 
 # ===== Marking software automation =====
 MARKING_WINDOW_TITLE_KEYWORD = "EzCad-Lite"
@@ -362,48 +363,54 @@ def preview_camera(index: int, backend_name: str, seconds: int = 5):
 # ===========================================================
 
 def fetch_huid_metadata(jobno: str = None, tagid: str = None) -> dict:
-    params = {"branchName": BRANCH_NAME}
-    if jobno:
-        params["Jobno"] = jobno
-    if tagid:
-        params["Tagid"] = tagid
+    # TESTING MODE: Use static tag ID directly, skip HUID API
+    log(f"Using static tag ID: {DEFAULT_TAG_ID} (testing mode)", "INFO")
+    return {"tagid": DEFAULT_TAG_ID, "jobno": datetime.now().strftime("%Y-%m-%d"),
+            "raw": {}, "success": True}
 
-    log(f"HUID API call → {params}", "INFO")
-
-    try:
-        resp = requests.get(HUID_API_BASE, params=params, timeout=HUID_API_TIMEOUT_SEC)
-        log(f"HUID API HTTP {resp.status_code}", "INFO")
-        resp.raise_for_status()
-        data   = resp.json()
-        record = data[0] if isinstance(data, list) and data else data
-
-        fetched_tagid = (
-            record.get(HUID_RESPONSE_TAGID_KEY)
-            or record.get("tagid") or record.get("TagId") or record.get("tag_id")
-        )
-        fetched_jobno = (
-            record.get(HUID_RESPONSE_JOBNO_KEY)
-            or record.get("jobno") or record.get("JobNo") or record.get("job_no")
-        )
-
-        if fetched_tagid and fetched_jobno:
-            log(f"HUID OK → Tagid: {fetched_tagid}  Jobno: {fetched_jobno}", "OK")
-            return {"tagid": str(fetched_tagid), "jobno": str(fetched_jobno),
-                    "raw": record, "success": True}
-        else:
-            log(f"HUID response missing fields. Raw: {data}", "WARN")
-
-    except requests.exceptions.Timeout:
-        log(f"HUID API timed out after {HUID_API_TIMEOUT_SEC}s", "ERROR")
-    except requests.exceptions.ConnectionError as e:
-        log(f"HUID API connection error: {e}", "ERROR")
-    except Exception as e:
-        log(f"HUID API failed: {e}", "ERROR")
-
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-    log("Fallback: using timestamp-based filename", "WARN")
-    return {"tagid": f"mark_{ts}", "jobno": datetime.now().strftime("%Y-%m-%d"),
-            "raw": {}, "success": False}
+    # --- Original HUID API code (disabled for testing) ---
+    # params = {"branchName": BRANCH_NAME}
+    # if jobno:
+    #     params["Jobno"] = jobno
+    # if tagid:
+    #     params["Tagid"] = tagid
+    #
+    # log(f"HUID API call → {params}", "INFO")
+    #
+    # try:
+    #     resp = requests.get(HUID_API_BASE, params=params, timeout=HUID_API_TIMEOUT_SEC)
+    #     log(f"HUID API HTTP {resp.status_code}", "INFO")
+    #     resp.raise_for_status()
+    #     data   = resp.json()
+    #     record = data[0] if isinstance(data, list) and data else data
+    #
+    #     fetched_tagid = (
+    #         record.get(HUID_RESPONSE_TAGID_KEY)
+    #         or record.get("tagid") or record.get("TagId") or record.get("tag_id")
+    #     )
+    #     fetched_jobno = (
+    #         record.get(HUID_RESPONSE_JOBNO_KEY)
+    #         or record.get("jobno") or record.get("JobNo") or record.get("job_no")
+    #     )
+    #
+    #     if fetched_tagid and fetched_jobno:
+    #         log(f"HUID OK → Tagid: {fetched_tagid}  Jobno: {fetched_jobno}", "OK")
+    #         return {"tagid": str(fetched_tagid), "jobno": str(fetched_jobno),
+    #                 "raw": record, "success": True}
+    #     else:
+    #         log(f"HUID response missing fields. Raw: {data}", "WARN")
+    #
+    # except requests.exceptions.Timeout:
+    #     log(f"HUID API timed out after {HUID_API_TIMEOUT_SEC}s", "ERROR")
+    # except requests.exceptions.ConnectionError as e:
+    #     log(f"HUID API connection error: {e}", "ERROR")
+    # except Exception as e:
+    #     log(f"HUID API failed: {e}", "ERROR")
+    #
+    # # Use static default tag ID for testing
+    # log(f"Fallback: using static tag ID {DEFAULT_TAG_ID}", "WARN")
+    # return {"tagid": DEFAULT_TAG_ID, "jobno": datetime.now().strftime("%Y-%m-%d"),
+    #         "raw": {}, "success": True}
 
 
 # ===========================================================
@@ -461,8 +468,7 @@ def upload_to_hqc_api(filepath: str, tag_id: str, bis_job_no: str, image_type: s
                 files = {"file": (os.path.basename(filepath), f, "image/jpeg")}
                 data = {
                     "tag_id": tag_id,
-                    "bis_job_no": bis_job_no,
-                    "image_type": image_type,
+                    "job_no": bis_job_no,
                 }
                 if branch:
                     data["branch"] = branch
@@ -471,8 +477,10 @@ def upload_to_hqc_api(filepath: str, tag_id: str, bis_job_no: str, image_type: s
                 if HQC_API_KEY:
                     headers["x-api-key"] = HQC_API_KEY
 
+                # Use huid-photo endpoint for HUID images, article-photo for article images
+                endpoint = "/api/external/huid-photo" if image_type == "huid" else "/api/external/article-photo"
                 resp = requests.post(
-                    f"{HQC_API_BASE}/api/external/photo",
+                    f"{HQC_API_BASE}{endpoint}",
                     files=files,
                     data=data,
                     headers=headers,
