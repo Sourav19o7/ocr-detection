@@ -46,6 +46,7 @@ HQC_UPLOAD_TIMEOUT = 30
 
 # ===== HUID API =====
 HUID_API_BASE            = "http://103.133.214.232:8026/api/grn/HUID_API"
+HUID_API_KEY             = "9f8c7a6b5e4d3c2b1a"  # BAC API key
 BRANCH_NAME              = "Hosur"
 HUID_API_TIMEOUT_SEC     = 10
 HUID_RESPONSE_TAGID_KEY  = "Tagid"
@@ -370,8 +371,13 @@ def fetch_huid_metadata(jobno: str = None, tagid: str = None) -> dict:
 
     log(f"HUID API call → {params}", "INFO")
 
+    # Build headers with API key for authentication
+    headers = {}
+    if HUID_API_KEY:
+        headers["x-api-key"] = HUID_API_KEY
+
     try:
-        resp = requests.get(HUID_API_BASE, params=params, timeout=HUID_API_TIMEOUT_SEC)
+        resp = requests.get(HUID_API_BASE, params=params, headers=headers, timeout=HUID_API_TIMEOUT_SEC)
         log(f"HUID API HTTP {resp.status_code}", "INFO")
         resp.raise_for_status()
         data   = resp.json()
@@ -764,7 +770,108 @@ def stop_preview():
     preview_running = False
 
 
-def save_image(cap, jobno: str = None, tagid: str = None):
+# ===========================================================
+#  Tag ID Input Dialog
+# ===========================================================
+
+def ask_tag_id() -> str:
+    """
+    Show a dialog to ask for Tag ID input.
+    Returns the entered tag ID or None if cancelled.
+    """
+    result = {"value": None}
+
+    def on_submit():
+        value = entry.get().strip()
+        if value:
+            result["value"] = value
+            dialog.destroy()
+        else:
+            entry.focus_set()
+
+    def on_cancel():
+        dialog.destroy()
+
+    def on_key(event):
+        if event.keysym == "Return":
+            on_submit()
+        elif event.keysym == "Escape":
+            on_cancel()
+
+    dialog = tk.Tk()
+    dialog.title("Enter Tag ID")
+    dialog.configure(bg="#0B1220")
+    dialog.attributes("-topmost", True)
+    dialog.resizable(False, False)
+
+    # Center the dialog
+    w, h = 400, 150
+    sw, sh = dialog.winfo_screenwidth(), dialog.winfo_screenheight()
+    dialog.geometry(f"{w}x{h}+{(sw-w)//2}+{(sh-h)//2}")
+
+    # Main frame
+    frame = tk.Frame(dialog, bg="#0B1220", padx=20, pady=20)
+    frame.pack(fill="both", expand=True)
+
+    # Label
+    tk.Label(
+        frame,
+        text="Enter Tag ID:",
+        fg="#E0C37E",
+        bg="#0B1220",
+        font=("Segoe UI", 12, "bold")
+    ).pack(anchor="w", pady=(0, 10))
+
+    # Entry field
+    entry = tk.Entry(
+        frame,
+        font=("Consolas", 14),
+        bg="#1E293B",
+        fg="#FFFFFF",
+        insertbackground="#FFFFFF",
+        relief="flat",
+        width=30
+    )
+    entry.pack(fill="x", pady=(0, 15))
+    entry.focus_set()
+    entry.bind("<Key>", on_key)
+
+    # Button frame
+    btn_frame = tk.Frame(frame, bg="#0B1220")
+    btn_frame.pack(fill="x")
+
+    tk.Button(
+        btn_frame,
+        text="Submit",
+        command=on_submit,
+        bg="#22C55E",
+        fg="#FFFFFF",
+        font=("Segoe UI", 10, "bold"),
+        relief="flat",
+        padx=20,
+        pady=5,
+        cursor="hand2"
+    ).pack(side="left", padx=(0, 10))
+
+    tk.Button(
+        btn_frame,
+        text="Cancel",
+        command=on_cancel,
+        bg="#EF4444",
+        fg="#FFFFFF",
+        font=("Segoe UI", 10),
+        relief="flat",
+        padx=20,
+        pady=5,
+        cursor="hand2"
+    ).pack(side="left")
+
+    dialog.mainloop()
+
+    return result["value"]
+
+
+def save_image(cap):
     global last_capture_time, latest_frame
 
     now = time.time()
@@ -790,31 +897,35 @@ def save_image(cap, jobno: str = None, tagid: str = None):
         log("No frame available — capture aborted", "ERROR")
         return
 
-    meta     = fetch_huid_metadata(jobno=jobno, tagid=tagid)
-    folder   = jobno_folder(meta["jobno"])
-    filename = f"{meta['tagid']}.jpg"
-    filepath = os.path.join(folder, filename)
+    # Ask for Tag ID after capturing the image
+    log("Waiting for Tag ID input...", "INFO")
+    tag_id = ask_tag_id()
 
-    if not meta["success"]:
-        log(f"HUID unavailable — fallback filename: {filename}", "WARN")
+    if not tag_id:
+        log("Tag ID input cancelled — image discarded", "WARN")
+        return
+
+    log(f"Tag ID entered: {tag_id}", "OK")
+
+    # Use today's date as job number
+    job_no = datetime.now().strftime("%Y-%m-%d")
+
+    # Save the captured frame using the entered tag ID
+    folder = jobno_folder(job_no)
+    filename = f"{tag_id}.jpg"
+    filepath = os.path.join(folder, filename)
 
     cv2.imwrite(filepath, frame, [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY])
     log(f"Image saved: {filepath}", "OK")
 
-    # Upload to S3 for OCR processing (disabled - using HQC API instead)
-    # upload_image_async(filepath, meta["tagid"])
-
-    # Upload to Hallmark QC API for Manakonline upload queue
-    if meta["success"]:
-        upload_to_hqc_api(
-            filepath=filepath,
-            tag_id=meta["tagid"],
-            bis_job_no=meta["jobno"],
-            image_type="huid",  # This is a HUID image capture
-            branch=BRANCH_NAME if BRANCH_NAME != "branchName" else None
-        )
-    else:
-        log("Skipping HQC upload - HUID API metadata not available", "WARN")
+    # Upload to Hallmark QC API using the entered tag ID
+    upload_to_hqc_api(
+        filepath=filepath,
+        tag_id=tag_id,
+        bis_job_no=job_no,
+        image_type="huid",
+        branch=BRANCH_NAME if BRANCH_NAME != "branchName" else None
+    )
 
 
 def automated_capture_flow(cap):
@@ -828,6 +939,17 @@ def automated_capture_flow(cap):
 
     log("F12 triggered — automated capture flow starting", "INFO")
 
+    # Ask for Tag ID FIRST before doing anything
+    log("Waiting for Tag ID input...", "INFO")
+    tag_id = ask_tag_id()
+
+    if not tag_id:
+        log("Tag ID input cancelled — aborting", "WARN")
+        return
+
+    log(f"Tag ID entered: {tag_id}", "OK")
+
+    # Now proceed with the capture flow
     hwnd = find_window_by_title(MARKING_WINDOW_TITLE_KEYWORD)
     if not hwnd:
         log(f"EZCAD2 window not found (keyword='{MARKING_WINDOW_TITLE_KEYWORD}')", "ERROR")
@@ -841,8 +963,47 @@ def automated_capture_flow(cap):
     send_key_to_foreground(kb.Key.esc)
     time.sleep(PREVIEW_OFF_WAIT_SEC)
 
-    meta = fetch_huid_metadata()
-    save_image(cap, jobno=meta["jobno"], tagid=meta["tagid"])
+    # Capture the image
+    log("Capturing image...", "INFO")
+
+    # Grab frame from camera
+    global latest_frame, last_capture_time
+    for _ in range(3):
+        cap.grab()
+    ok, frame = cap.retrieve()
+
+    if not ok:
+        log("cap.retrieve() failed — using buffered frame", "WARN")
+        with frame_lock:
+            frame = latest_frame
+
+    if frame is None:
+        log("No frame available — capture aborted", "ERROR")
+        # Still send F1 to restore preview
+        log("Sending F1 → EZCAD2 preview ON", "INFO")
+        send_key_to_foreground(kb.Key.f1)
+        return
+
+    # Use today's date as job number
+    job_no = datetime.now().strftime("%Y-%m-%d")
+
+    # Save the captured frame using the entered tag ID
+    folder = jobno_folder(job_no)
+    filename = f"{tag_id}.jpg"
+    filepath = os.path.join(folder, filename)
+
+    last_capture_time = time.time()
+    cv2.imwrite(filepath, frame, [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY])
+    log(f"Image saved: {filepath}", "OK")
+
+    # Upload to Hallmark QC API using the entered tag ID
+    upload_to_hqc_api(
+        filepath=filepath,
+        tag_id=tag_id,
+        bis_job_no=job_no,
+        image_type="huid",
+        branch=BRANCH_NAME if BRANCH_NAME != "branchName" else None
+    )
 
     log(f"Waiting {PREVIEW_ON_WAIT_SEC}s before sending F1…", "INFO")
     time.sleep(PREVIEW_ON_WAIT_SEC)
