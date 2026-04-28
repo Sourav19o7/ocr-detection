@@ -395,6 +395,195 @@ async def upload_batch(
     )
 
 
+# BAC HUID API Configuration
+BAC_API_BASE = "http://103.133.214.232:8026"
+BAC_API_KEY = "9f8c7a6b5e4d3c2b1a"
+BAC_API_TIMEOUT = 30
+
+
+@app.post("/stage1/fetch-from-bac")
+async def fetch_batch_from_bac(
+    branch: str = Form(..., description="Branch name (e.g., Hosur)"),
+    job_no: str = Form(..., description="Job number to fetch HUIDs for"),
+):
+    """Fetch tag IDs and HUIDs from BAC GRN API and create a batch.
+
+    This endpoint calls the BAC HUID_API to retrieve all tag IDs and their
+    corresponding HUIDs for a given branch and job number, then creates
+    a batch with this data.
+
+    Note: The BAC HUID_API requires a specific TagId to return data. This
+    endpoint attempts to fetch data, but if the API requires individual
+    tag lookups, it may return empty results.
+    """
+    import httpx
+
+    try:
+        # First try the HUID endpoint which might return all HUIDs for a job
+        async with httpx.AsyncClient(timeout=BAC_API_TIMEOUT) as client:
+            # Try HUID endpoint first
+            huid_url = f"{BAC_API_BASE}/api/grn/HUID"
+            headers = {"x-api-key": BAC_API_KEY}
+            params = {"branchName": branch, "Jobno": job_no}
+
+            response = await client.get(huid_url, headers=headers, params=params)
+            response.raise_for_status()
+            data = response.json()
+
+            items = []
+
+            # Parse HUID response
+            if data.get("success") and data.get("data"):
+                for table in data["data"]:
+                    for row in table.get("rows", []):
+                        tag_id = row.get("TagId") or row.get("Tagid") or row.get("tag_id")
+                        huid = row.get("HuidNo") or row.get("Huid") or row.get("huid")
+
+                        if tag_id and huid:
+                            items.append({
+                                "tag_id": str(tag_id),
+                                "expected_huid": str(huid),
+                            })
+
+            # If no items from HUID endpoint, try Receipt endpoint
+            if not items:
+                receipt_url = f"{BAC_API_BASE}/api/grn/Receipt"
+                response = await client.get(receipt_url, headers=headers, params=params)
+                response.raise_for_status()
+                data = response.json()
+
+                if data.get("success") and data.get("data"):
+                    for table in data["data"]:
+                        for row in table.get("rows", []):
+                            tag_id = row.get("TagId") or row.get("Tagid") or row.get("tag_id")
+                            huid = row.get("HuidNo") or row.get("Huid") or row.get("huid") or row.get("LaserPrintingMark")
+
+                            if tag_id:
+                                items.append({
+                                    "tag_id": str(tag_id),
+                                    "expected_huid": str(huid) if huid else "",
+                                })
+
+            if not items:
+                return JSONResponse(
+                    status_code=404,
+                    content={
+                        "status": "error",
+                        "message": f"No HUID data found for branch '{branch}' and job '{job_no}'",
+                        "branch": branch,
+                        "job_no": job_no,
+                    }
+                )
+
+            # Create batch items
+            batch_items = [
+                BatchItem(
+                    batch_id=0,
+                    tag_id=item["tag_id"],
+                    expected_huid=item["expected_huid"],
+                    status=ProcessingStatus.PENDING,
+                )
+                for item in items
+            ]
+
+            resolved_name = job_no
+            batch = Batch(batch_name=resolved_name, total_items=len(batch_items), status="pending")
+            batch_id = db.create_batch_with_items(batch, batch_items)
+
+            return {
+                "status": "success",
+                "batch_id": batch_id,
+                "batch_name": resolved_name,
+                "branch": branch,
+                "job_no": job_no,
+                "total_items": len(items),
+                "accepted": len(items),
+                "items": items,
+                "message": f"Created batch with {len(items)} items from BAC API",
+            }
+
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="BAC API request timed out")
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=f"BAC API error: {e.response.text}")
+    except Exception as e:
+        logger.error(f"Error fetching from BAC API: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch from BAC API: {str(e)}")
+
+
+@app.get("/stage1/preview-bac")
+async def preview_bac_data(
+    branch: str = Query(..., description="Branch name (e.g., Hosur)"),
+    job_no: str = Query(..., description="Job number to fetch HUIDs for"),
+):
+    """Preview tag IDs and HUIDs from BAC GRN API without creating a batch.
+
+    Use this endpoint to check what data is available before creating a batch.
+    """
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=BAC_API_TIMEOUT) as client:
+            headers = {"x-api-key": BAC_API_KEY}
+            params = {"branchName": branch, "Jobno": job_no}
+
+            items = []
+
+            # Try HUID endpoint
+            huid_url = f"{BAC_API_BASE}/api/grn/HUID"
+            response = await client.get(huid_url, headers=headers, params=params)
+            response.raise_for_status()
+            data = response.json()
+
+            if data.get("success") and data.get("data"):
+                for table in data["data"]:
+                    for row in table.get("rows", []):
+                        tag_id = row.get("TagId") or row.get("Tagid") or row.get("tag_id")
+                        huid = row.get("HuidNo") or row.get("Huid") or row.get("huid")
+
+                        if tag_id and huid:
+                            items.append({
+                                "tag_id": str(tag_id),
+                                "expected_huid": str(huid),
+                            })
+
+            # Try Receipt endpoint if HUID returned nothing
+            if not items:
+                receipt_url = f"{BAC_API_BASE}/api/grn/Receipt"
+                response = await client.get(receipt_url, headers=headers, params=params)
+                response.raise_for_status()
+                data = response.json()
+
+                if data.get("success") and data.get("data"):
+                    for table in data["data"]:
+                        for row in table.get("rows", []):
+                            tag_id = row.get("TagId") or row.get("Tagid") or row.get("tag_id")
+                            huid = row.get("HuidNo") or row.get("Huid") or row.get("huid") or row.get("LaserPrintingMark")
+
+                            if tag_id:
+                                items.append({
+                                    "tag_id": str(tag_id),
+                                    "expected_huid": str(huid) if huid else "",
+                                })
+
+            return {
+                "status": "success",
+                "branch": branch,
+                "job_no": job_no,
+                "total_items": len(items),
+                "items": items,
+                "message": f"Found {len(items)} items" if items else "No data found for this branch/job combination",
+            }
+
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="BAC API request timed out")
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=f"BAC API error: {e.response.text}")
+    except Exception as e:
+        logger.error(f"Error fetching from BAC API: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch from BAC API: {str(e)}")
+
+
 @app.get("/stage1/batches")
 async def list_batches():
     """List all uploaded batches."""

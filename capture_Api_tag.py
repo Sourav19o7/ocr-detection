@@ -897,34 +897,46 @@ def save_image(cap):
         log("No frame available — capture aborted", "ERROR")
         return
 
-    # Wait 5 seconds before showing tag input dialog
-    log("Waiting 5s before Tag ID input...", "INFO")
-    time.sleep(7.0)
+    # Use today's date as job number
+    job_no = datetime.now().strftime("%Y-%m-%d")
+    folder = jobno_folder(job_no)
 
-    # Ask for Tag ID after capturing the image
+    # Step 1: Save image immediately with timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+    temp_filename = f"capture_{timestamp}.jpg"
+    temp_filepath = os.path.join(folder, temp_filename)
+
+    cv2.imwrite(temp_filepath, frame, [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY])
+    log(f"Image captured: {temp_filepath}", "OK")
+
+    # Step 2: Wait 15 seconds before showing tag input dialog
+    log("Waiting 15s before Tag ID input...", "INFO")
+    time.sleep(15.0)
+
+    # Step 3: Ask for Tag ID
     log("Showing Tag ID input dialog...", "INFO")
     tag_id = ask_tag_id()
 
     if not tag_id:
-        log("Tag ID input cancelled — image discarded", "WARN")
+        log("Tag ID input cancelled — image kept with timestamp name", "WARN")
         return
 
     log(f"Tag ID entered: {tag_id}", "OK")
 
-    # Use today's date as job number
-    job_no = datetime.now().strftime("%Y-%m-%d")
+    # Step 4: Rename file with tag ID
+    final_filename = f"{tag_id}.jpg"
+    final_filepath = os.path.join(folder, final_filename)
 
-    # Save the captured frame using the entered tag ID
-    folder = jobno_folder(job_no)
-    filename = f"{tag_id}.jpg"
-    filepath = os.path.join(folder, filename)
+    try:
+        os.rename(temp_filepath, final_filepath)
+        log(f"Image renamed: {final_filepath}", "OK")
+    except Exception as e:
+        log(f"Rename failed: {e} — keeping original filename", "WARN")
+        final_filepath = temp_filepath
 
-    cv2.imwrite(filepath, frame, [int(cv2.IMWRITE_JPEG_QUALITY), JPEG_QUALITY])
-    log(f"Image saved: {filepath}", "OK")
-
-    # Upload to Hallmark QC API using the entered tag ID
+    # Step 5: Upload to Hallmark QC API using the entered tag ID
     upload_to_hqc_api(
-        filepath=filepath,
+        filepath=final_filepath,
         tag_id=tag_id,
         bis_job_no=job_no,
         image_type="huid",

@@ -16,7 +16,8 @@ export function mountUpload(el) {
     <div class="page-header">
       <h1>Upload</h1>
       <div class="row" id="mode-switch" role="tablist" aria-label="Upload mode">
-        <button class="btn btn-secondary btn-sm" role="tab" aria-selected="true" data-mode="new">New batch</button>
+        <button class="btn btn-secondary btn-sm" role="tab" aria-selected="true" data-mode="new">New batch (Excel)</button>
+        <button class="btn btn-tertiary btn-sm" role="tab" aria-selected="false" data-mode="bac">Fetch from BAC</button>
         <button class="btn btn-tertiary btn-sm" role="tab" aria-selected="false" data-mode="existing">Add to existing batch</button>
       </div>
     </div>
@@ -27,6 +28,10 @@ export function mountUpload(el) {
         The file needs a <span class="mono">tag_id</span> column and an
         <span class="mono">expected_huid</span> column. Extra columns are ignored.
       </p>
+      <div class="form-group" style="margin-bottom:12px">
+        <label for="excel-jobno" style="display:block; margin-bottom:4px; font-weight:500">Job Number (Batch Name)</label>
+        <input type="text" id="excel-jobno" class="tag-input" placeholder="e.g., 262700008" style="max-width:300px; font-family:Inter, sans-serif; font-size:13px" />
+      </div>
       <label class="row" style="margin-bottom:12px; gap: 8px;">
         <input type="checkbox" id="strict-toggle" />
         <span>Strict mode — reject the whole batch if any row fails validation.</span>
@@ -37,6 +42,30 @@ export function mountUpload(el) {
         <p>…or click to browse. CSV, XLSX, XLS.</p>
       </div>
       <div id="sheet-result" class="hidden" style="margin-top:16px"></div>
+    </div>
+
+    <div class="upload-step card card-body hidden" id="step-bac">
+      <div class="step-head"><span class="step-num">1</span><h2>Fetch from BAC API</h2></div>
+      <p class="muted" style="margin:0 0 12px">
+        Enter the branch name and job number to fetch tag IDs and HUIDs from the BAC GRN system.
+      </p>
+      <div class="form-group" style="margin-bottom:12px">
+        <label for="bac-branch" style="display:block; margin-bottom:4px; font-weight:500">Branch</label>
+        <select id="bac-branch" class="tag-input" style="max-width:300px; font-family:Inter, sans-serif; font-size:13px">
+          <option value="Hosur" selected>Hosur</option>
+          <option value="Kolkata">Kolkata</option>
+          <option value="Mumbai">Mumbai</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:16px">
+        <label for="bac-jobno" style="display:block; margin-bottom:4px; font-weight:500">Job Number</label>
+        <input type="text" id="bac-jobno" class="tag-input" placeholder="e.g., 262700008" style="max-width:300px; font-family:Inter, sans-serif; font-size:13px" />
+      </div>
+      <div class="row" style="gap:8px">
+        <button class="btn btn-secondary" id="bac-preview">Preview Data</button>
+        <button class="btn btn-primary" id="bac-fetch">Create Batch</button>
+      </div>
+      <div id="bac-result" class="hidden" style="margin-top:16px"></div>
     </div>
 
     <div class="upload-step card card-body hidden" id="step-existing">
@@ -84,6 +113,7 @@ export function mountUpload(el) {
   // --- Mode switch --------------------------------------------------------
 
   const step1 = el.querySelector("#step1");
+  const stepBac = el.querySelector("#step-bac");
   const stepExisting = el.querySelector("#step-existing");
   const step2 = el.querySelector("#step2");
   const modeButtons = el.querySelectorAll("#mode-switch [data-mode]");
@@ -95,15 +125,19 @@ export function mountUpload(el) {
       b.classList.toggle("btn-secondary", active);
       b.classList.toggle("btn-tertiary", !active);
     });
+    // Hide all step panels first
+    step1.classList.add("hidden");
+    stepBac.classList.add("hidden");
+    stepExisting.classList.add("hidden");
+    step2.classList.add("hidden");
+    state.batch = null; state.tagIds = [];
+
     if (mode === "new") {
       step1.classList.remove("hidden");
-      stepExisting.classList.add("hidden");
-      step2.classList.add("hidden");
-      state.batch = null; state.tagIds = [];
-    } else {
-      step1.classList.add("hidden");
+    } else if (mode === "bac") {
+      stepBac.classList.remove("hidden");
+    } else if (mode === "existing") {
       stepExisting.classList.remove("hidden");
-      step2.classList.add("hidden");
       loadExistingBatches(el, state);
     }
   }
@@ -123,6 +157,96 @@ export function mountUpload(el) {
   dropSheet.addEventListener("click", () => promptFile(".csv,.xlsx,.xls", false, async (files) => {
     if (files.length) await handleSheet(files[0], state, el);
   }));
+
+  // --- Step BAC (fetch from BAC API) --------------------------------------
+
+  const bacBranchInput = el.querySelector("#bac-branch");
+  const bacJobnoInput = el.querySelector("#bac-jobno");
+  const bacPreviewBtn = el.querySelector("#bac-preview");
+  const bacFetchBtn = el.querySelector("#bac-fetch");
+  const bacResult = el.querySelector("#bac-result");
+
+  bacPreviewBtn.addEventListener("click", async () => {
+    const branch = bacBranchInput.value.trim();
+    const jobNo = bacJobnoInput.value.trim();
+    if (!branch || !jobNo) {
+      toast.error("Please enter both branch and job number");
+      return;
+    }
+    bacResult.classList.remove("hidden");
+    bacResult.innerHTML = `<p class="muted">Fetching preview from BAC API...</p>`;
+    try {
+      const resp = await api.get(`/stage1/preview-bac?branch=${encodeURIComponent(branch)}&job_no=${encodeURIComponent(jobNo)}`);
+      if (!resp.items || resp.items.length === 0) {
+        bacResult.innerHTML = `<div class="chip chip-danger">No items found for this job</div>`;
+        return;
+      }
+      const rows = resp.items.slice(0, 10).map(item => `
+        <tr>
+          <td class="mono">${escapeHtml(item.tag_id || "")}</td>
+          <td class="mono">${escapeHtml(item.expected_huid || "")}</td>
+        </tr>
+      `).join("");
+      bacResult.innerHTML = `
+        <div class="row" style="gap: 12px; margin-bottom: 12px;">
+          <span class="chip chip-success">${resp.total_items} items found</span>
+          <span class="chip">${resp.branch} / ${resp.job_no}</span>
+        </div>
+        <details open style="margin-top:8px">
+          <summary>Preview (first 10 items)</summary>
+          <div class="table-wrap" style="margin-top:8px">
+            <table class="table">
+              <thead><tr><th>Tag ID</th><th>Expected HUID</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        </details>
+        ${resp.items.length > 10 ? `<p class="muted" style="margin-top:8px">...and ${resp.items.length - 10} more items</p>` : ""}
+      `;
+      toast.success(`Found ${resp.total_items} items`);
+    } catch (e) {
+      bacResult.innerHTML = `<div class="chip chip-danger">${escapeHtml(e.message || "Failed to fetch preview")}</div>`;
+      toast.error(e.message || "Failed to fetch preview");
+    }
+  });
+
+  bacFetchBtn.addEventListener("click", async () => {
+    const branch = bacBranchInput.value.trim();
+    const jobNo = bacJobnoInput.value.trim();
+    if (!branch || !jobNo) {
+      toast.error("Please enter both branch and job number");
+      return;
+    }
+    bacResult.classList.remove("hidden");
+    bacResult.innerHTML = `<p class="muted">Creating batch from BAC API...</p>`;
+    try {
+      const fd = new FormData();
+      fd.append("branch", branch);
+      fd.append("job_no", jobNo);
+      const resp = await api.postForm("/stage1/fetch-from-bac", fd);
+      state.batch = resp;
+      state.tagIds = resp.items?.map(i => i.tag_id) || [];
+      bacResult.innerHTML = `
+        <div class="row" style="gap: 12px; margin-bottom: 12px;">
+          <span class="chip chip-success">${resp.accepted} items added</span>
+          <span class="chip">${resp.branch} / ${resp.job_no}</span>
+        </div>
+        <div><strong>Batch #${resp.batch_id}</strong> — ${escapeHtml(resp.batch_name || "")}</div>
+        <div class="row" style="margin-top: 16px; gap: 8px">
+          <a class="btn btn-secondary" href="#/batch/${resp.batch_id}">View batch</a>
+          <button class="btn btn-primary" id="bac-go-images">Continue to images</button>
+        </div>
+      `;
+      bacResult.querySelector("#bac-go-images").addEventListener("click", () => {
+        step2.classList.remove("hidden");
+        step2.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      toast.success(`Batch #${resp.batch_id} created (${resp.accepted} items)`);
+    } catch (e) {
+      bacResult.innerHTML = `<div class="chip chip-danger">${escapeHtml(e.message || "Failed to create batch")}</div>`;
+      toast.error(e.message || "Failed to create batch");
+    }
+  });
 
   // --- Step 2 (images) ----------------------------------------------------
 
@@ -184,8 +308,14 @@ async function loadExistingBatches(root, state) {
 // --- step 1 --------------------------------------------------------------
 
 async function handleSheet(file, state, root) {
+  const jobNo = root.querySelector("#excel-jobno")?.value?.trim();
+  if (!jobNo) {
+    toast.error("Please enter a Job Number first");
+    return;
+  }
   const fd = new FormData();
   fd.append("file", file);
+  fd.append("batch_name", jobNo);
   const qs = state.strict ? "?strict=true" : "";
   const result = root.querySelector("#sheet-result");
   result.classList.remove("hidden");
